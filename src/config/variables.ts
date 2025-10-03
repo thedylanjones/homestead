@@ -181,6 +181,70 @@ export const ENEMY_CONFIG = {
 } as const
 
 // ============================================================================
+// BUILDING CONFIGURATION - Building system settings
+// ============================================================================
+
+export const BUILDING_CONFIG = {
+  // Building types and their properties
+  TYPES: {
+    POWER: {
+      NAME: 'Power Station',
+      BUILD_TIME: 3000,        // 3 seconds to build
+      SIZE: 64,               // Building size in pixels
+      COLOR: 0xff6b35,        // Orange color
+      HEALTH_BAR_COLOR: 0x00ff00, // Green health bar
+      ICON: '⚡',             // Power icon
+      COST: 100,              // Building cost
+    },
+    WATER: {
+      NAME: 'Water Tower',
+      BUILD_TIME: 2500,        // 2.5 seconds to build
+      SIZE: 64,
+      COLOR: 0x3498db,        // Blue color
+      HEALTH_BAR_COLOR: 0x00ff00,
+      ICON: '💧',             // Water icon
+      COST: 80,               // Building cost
+    },
+    FOOD: {
+      NAME: 'Food Storage',
+      BUILD_TIME: 2000,        // 2 seconds to build
+      SIZE: 64,
+      COLOR: 0xf39c12,        // Yellow color
+      HEALTH_BAR_COLOR: 0x00ff00,
+      ICON: '🍎',             // Food icon
+      COST: 60,               // Building cost
+    },
+    TURRET: {
+      NAME: 'Defense Turret',
+      BUILD_TIME: 4000,        // 4 seconds to build
+      SIZE: 64,
+      COLOR: 0xe74c3c,        // Red color
+      HEALTH_BAR_COLOR: 0x00ff00,
+      ICON: '🏹',             // Turret icon
+      COST: 150,              // Building cost
+    },
+  },
+  
+  // Building system settings
+  UI: {
+    ICON_SIZE: 48,            // Size of building selection icons
+    ICON_SPACING: 60,         // Space between icons
+    ICON_Y_POSITION: 0.9,     // Position from bottom (0.9 = 90% down)
+    SELECTED_ALPHA: 1.0,      // Alpha for selected icon
+    UNSELECTED_ALPHA: 0.6,    // Alpha for unselected icons
+    HEALTH_BAR_WIDTH: 60,     // Building health bar width
+    HEALTH_BAR_HEIGHT: 8,     // Building health bar height
+    HEALTH_BAR_OFFSET_Y: -40, // Health bar position above building
+  },
+  
+  // Building placement settings
+  PLACEMENT: {
+    GRID_SIZE: 32,            // Snap to grid for placement
+    MIN_DISTANCE_FROM_PLAYER: 80, // Minimum distance from player to place
+  },
+} as const
+
+// ============================================================================
 // GAME CONFIGURATION - General game settings
 // ============================================================================
 

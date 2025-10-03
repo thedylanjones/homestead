@@ -51,7 +51,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   private isAttackActive: boolean = false // Whether an attack is currently active
   private hitEnemies: Set<any> = new Set() // Track which enemies have been hit by current attack
   
-  // Arrow keys (up, down, left, right)
+  // Arrow keys for building selection (up, down, left, right)
   private cursors: Phaser.Types.Input.Keyboard.CursorKeys | null = null
   
   // WASD keys for movement (W=up, A=left, S=down, D=right)
@@ -61,6 +61,11 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     S: Phaser.Input.Keyboard.Key // Down movement key
     D: Phaser.Input.Keyboard.Key // Right movement key
   } | null = null
+  
+  // Building selection system
+  private selectedBuildingType: string = 'POWER' // Currently selected building type
+  private buildingTypes: string[] = ['POWER', 'WATER', 'FOOD', 'TURRET'] // Available building types
+  private selectedBuildingIndex: number = 0 // Index of currently selected building
 
   // ============================================================================
   // CONSTRUCTOR - Runs when a new Player is created
@@ -131,10 +136,11 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   // ============================================================================
   
   /**
-   * Sets up input controls for player movement
+   * Sets up input controls for player movement and building selection
    * 
-   * This method creates keyboard controls so the player can move around.
-   * We support both WASD keys and arrow keys for flexibility.
+   * This method creates keyboard controls:
+   * - WASD keys for player movement
+   * - Arrow keys for building selection
    */
   private setupInput(): void {
     // Set up WASD keys for movement (common in PC games)
@@ -145,7 +151,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       D: Phaser.Input.Keyboard.Key // D key for moving right
     }
     
-    // Also set up arrow keys as an alternative control scheme
+    // Set up arrow keys for building selection
     this.cursors = this.scene.input.keyboard!.createCursorKeys()
   }
 
@@ -166,8 +172,11 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     // Safety check: make sure input keys are set up
     if (!this.wasdKeys || !this.cursors) return
 
-    // Handle movement input (check which keys are pressed and move accordingly)
+    // Handle movement input (WASD keys only)
     this.handleMovement()
+    
+    // Handle building selection input (arrow keys)
+    this.handleBuildingSelection()
     
     // Update health bar position only if health changed
     this.updateHealthBarPosition()
@@ -184,14 +193,14 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   // ============================================================================
   
   /**
-   * Handles player movement based on keyboard input
+   * Handles player movement based on WASD keyboard input
    * 
-   * This method checks which keys are currently pressed and moves the player
-   * in the appropriate direction. It supports both WASD and arrow keys.
+   * This method checks which WASD keys are currently pressed and moves the player
+   * in the appropriate direction. Arrow keys are used for building selection.
    */
   private handleMovement(): void {
     // Safety check: make sure input keys are set up
-    if (!this.wasdKeys || !this.cursors) return
+    if (!this.wasdKeys) return
 
     let isMoving = false
 
@@ -199,15 +208,15 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     // VERTICAL MOVEMENT (Up and Down)
     // ============================================================================
     
-    // Move up if W key or Up arrow is pressed
-    if (this.wasdKeys.W.isDown || this.cursors.up.isDown) {
+    // Move up if W key is pressed
+    if (this.wasdKeys.W.isDown) {
       this.setVelocityY(-this.speed) // Negative Y moves up
       this.lastDirection = { x: 0, y: -1 } // Update last direction
       isMoving = true
     }
     
-    // Move down if S key or Down arrow is pressed
-    if (this.wasdKeys.S.isDown || this.cursors.down.isDown) {
+    // Move down if S key is pressed
+    if (this.wasdKeys.S.isDown) {
       this.setVelocityY(this.speed) // Positive Y moves down
       this.lastDirection = { x: 0, y: 1 } // Update last direction
       isMoving = true
@@ -217,15 +226,15 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     // HORIZONTAL MOVEMENT (Left and Right)
     // ============================================================================
     
-    // Move left if A key or Left arrow is pressed
-    if (this.wasdKeys.A.isDown || this.cursors.left.isDown) {
+    // Move left if A key is pressed
+    if (this.wasdKeys.A.isDown) {
       this.setVelocityX(-this.speed) // Negative X moves left
       this.lastDirection = { x: -1, y: 0 } // Update last direction
       isMoving = true
     }
     
-    // Move right if D key or Right arrow is pressed
-    if (this.wasdKeys.D.isDown || this.cursors.right.isDown) {
+    // Move right if D key is pressed
+    if (this.wasdKeys.D.isDown) {
       this.setVelocityX(this.speed) // Positive X moves right
       this.lastDirection = { x: 1, y: 0 } // Update last direction
       isMoving = true
@@ -234,6 +243,52 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     // Only reset velocity if not moving (optimization)
     if (!isMoving) {
       this.setVelocity(0)
+    }
+  }
+
+  // ============================================================================
+  // BUILDING SELECTION HANDLING - Arrow keys for building selection
+  // ============================================================================
+  
+  /**
+   * Handles building selection based on arrow key input
+   * 
+   * This method uses arrow keys to select different building types:
+   * - Left/Right arrows: Select different building types
+   * - Up arrow: Place selected building (handled by GameScene)
+   */
+  private handleBuildingSelection(): void {
+    // Safety check: make sure input keys are set up
+    if (!this.cursors) return
+
+    // Left arrow: Previous building type
+    if (Phaser.Input.Keyboard.JustDown(this.cursors.left)) {
+      this.selectedBuildingIndex = (this.selectedBuildingIndex - 1 + this.buildingTypes.length) % this.buildingTypes.length
+      this.selectedBuildingType = this.buildingTypes[this.selectedBuildingIndex]
+      
+      // Notify scene of building selection change
+      if (this.scene && 'onBuildingSelectionChanged' in this.scene) {
+        (this.scene as any).onBuildingSelectionChanged(this.selectedBuildingType, this.selectedBuildingIndex)
+      }
+    }
+    
+    // Right arrow: Next building type
+    if (Phaser.Input.Keyboard.JustDown(this.cursors.right)) {
+      this.selectedBuildingIndex = (this.selectedBuildingIndex + 1) % this.buildingTypes.length
+      this.selectedBuildingType = this.buildingTypes[this.selectedBuildingIndex]
+      
+      // Notify scene of building selection change
+      if (this.scene && 'onBuildingSelectionChanged' in this.scene) {
+        (this.scene as any).onBuildingSelectionChanged(this.selectedBuildingType, this.selectedBuildingIndex)
+      }
+    }
+    
+    // Up arrow: Place building (handled by GameScene)
+    if (Phaser.Input.Keyboard.JustDown(this.cursors.up)) {
+      // Notify scene to place building
+      if (this.scene && 'onBuildingPlacementRequested' in this.scene) {
+        (this.scene as any).onBuildingPlacementRequested(this.selectedBuildingType)
+      }
     }
   }
 
@@ -562,5 +617,26 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
    */
   public getHealthPercentage(): number {
     return this.currentHealth / this.maxHealth
+  }
+
+  /**
+   * Gets the currently selected building type
+   */
+  public getSelectedBuildingType(): string {
+    return this.selectedBuildingType
+  }
+
+  /**
+   * Gets the currently selected building index
+   */
+  public getSelectedBuildingIndex(): number {
+    return this.selectedBuildingIndex
+  }
+
+  /**
+   * Gets all available building types
+   */
+  public getBuildingTypes(): string[] {
+    return this.buildingTypes
   }
 }

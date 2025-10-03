@@ -4,7 +4,7 @@ import { defineConfig } from 'vite'
 export default defineConfig({
   server: {
     port: 3000,          // force port 3000
-    strictPort: true,    // fail if 3000 is in use
+    strictPort: false,   // allow fallback to other ports
     hmr: { clientPort: 3000 },
     open: false
   },

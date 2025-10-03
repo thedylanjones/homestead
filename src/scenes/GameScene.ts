@@ -2,14 +2,17 @@
 import Phaser from 'phaser'
 import { Player, PlayerConfig } from '../entities/Player'
 import { Enemy, EnemyConfig } from '../entities/Enemy'
+import { Building, BuildingConfig, BuildingType } from '../entities/Building'
 import { CameraManager } from '../managers/CameraManager'
 import { BackgroundManager } from '../managers/BackgroundManager'
 import { GrassManager } from '../managers/GrassManager'
+import { BuildingUIManager } from '../managers/BuildingUIManager'
 import { PerformanceMonitor } from '../utils/PerformanceMonitor'
 import { 
   WORLD_CONFIG, 
   PLAYER_CONFIG,
-  ENEMY_CONFIG
+  ENEMY_CONFIG,
+  BUILDING_CONFIG
 } from '../config/variables'
 
 /**
@@ -39,6 +42,10 @@ export class GameScene extends Phaser.Scene {
   // Enemy system
   private enemies: Enemy[] = [] // Array to store all active enemies
   private lastEnemySpawn: number = 0 // When we last spawned an enemy
+  
+  // Building system
+  private buildings: Building[] = [] // Array to store all active buildings
+  private buildingUIManager: BuildingUIManager | null = null // UI manager for building selection
   
   // Array to store all grass positions (x, y coordinates and rotation)
   private grassPositions: { x: number, y: number, rotation: number }[] = []
@@ -119,6 +126,9 @@ export class GameScene extends Phaser.Scene {
     
     // Add performance monitoring (shows FPS and other stats)
     this.performanceMonitor = new PerformanceMonitor(this)
+    
+    // Create building UI manager
+    this.buildingUIManager = new BuildingUIManager(this)
     
     // Set up enemy collision detection
     this.setupEnemyCollisions()
@@ -223,6 +233,12 @@ export class GameScene extends Phaser.Scene {
     
     // Update all enemies
     this.updateEnemies()
+    
+    // Update all buildings
+    this.updateBuildings()
+    
+    // Check building-player collisions for healing
+    this.checkBuildingPlayerCollisions()
     
     // Spawn new enemies if needed
     this.spawnEnemies()
@@ -437,6 +453,176 @@ export class GameScene extends Phaser.Scene {
   }
 
   // ============================================================================
+  // BUILDING SYSTEM METHODS - Managing building placement, updates, and collisions
+  // ============================================================================
+  
+  /**
+   * Updates all active buildings
+   */
+  private updateBuildings(): void {
+    // Update each building
+    for (let i = this.buildings.length - 1; i >= 0; i--) {
+      const building = this.buildings[i]
+      
+      // Remove destroyed buildings from the array
+      if (!building.active) {
+        this.buildings.splice(i, 1)
+        continue
+      }
+      
+      // Update building state with player reference
+      building.update(this.player)
+    }
+  }
+
+  /**
+   * Checks collision between player and buildings for healing
+   */
+  private checkBuildingPlayerCollisions(): void {
+    if (!this.player || !this.player.isAlive()) return
+    
+    // Check collision with each building
+    this.buildings.forEach(building => {
+      if (building.isPlayerColliding(this.player)) {
+        // Heal player when colliding with fully built buildings
+        if (building.isFullyBuilt()) {
+          building.healPlayer(this.player, 50) // 50 health per second
+        }
+      }
+    })
+  }
+
+  /**
+   * Places a building at the player's position
+   * @param buildingType - Type of building to place
+   */
+  public placeBuilding(buildingType: BuildingType): void {
+    if (!this.player || !this.player.isAlive()) return
+    
+    // Calculate placement position (in front of player)
+    const playerDirection = this.player.getLastDirection()
+    const placementDistance = BUILDING_CONFIG.PLACEMENT.MIN_DISTANCE_FROM_PLAYER
+    const placementX = this.player.x + (playerDirection.x * placementDistance)
+    const placementY = this.player.y + (playerDirection.y * placementDistance)
+    
+    // Snap to grid
+    const gridSize = BUILDING_CONFIG.PLACEMENT.GRID_SIZE
+    const snappedX = Math.round(placementX / gridSize) * gridSize
+    const snappedY = Math.round(placementY / gridSize) * gridSize
+    
+    // Make sure placement is within world bounds
+    const buildingSize = BUILDING_CONFIG.TYPES[buildingType].SIZE
+    const clampedX = Phaser.Math.Clamp(snappedX, buildingSize / 2, this.worldWidth - buildingSize / 2)
+    const clampedY = Phaser.Math.Clamp(snappedY, buildingSize / 2, this.worldHeight - buildingSize / 2)
+    
+    // Check if position is already occupied
+    const isOccupied = this.buildings.some(building => {
+      const dx = building.x - clampedX
+      const dy = building.y - clampedY
+      const distance = Math.sqrt(dx * dx + dy * dy)
+      return distance < buildingSize
+    })
+    
+    if (isOccupied) {
+      // Position is occupied, try to find nearby empty spot
+      const nearbyPositions = [
+        { x: clampedX + gridSize, y: clampedY },
+        { x: clampedX - gridSize, y: clampedY },
+        { x: clampedX, y: clampedY + gridSize },
+        { x: clampedX, y: clampedY - gridSize }
+      ]
+      
+      let placed = false
+      for (const pos of nearbyPositions) {
+        const posX = Phaser.Math.Clamp(pos.x, buildingSize / 2, this.worldWidth - buildingSize / 2)
+        const posY = Phaser.Math.Clamp(pos.y, buildingSize / 2, this.worldHeight - buildingSize / 2)
+        
+        const isPosOccupied = this.buildings.some(building => {
+          const dx = building.x - posX
+          const dy = building.y - posY
+          const distance = Math.sqrt(dx * dx + dy * dy)
+          return distance < buildingSize
+        })
+        
+        if (!isPosOccupied) {
+          this.createBuilding(posX, posY, buildingType)
+          placed = true
+          break
+        }
+      }
+      
+      if (!placed) {
+        // Couldn't find empty spot, place at original position anyway
+        this.createBuilding(clampedX, clampedY, buildingType)
+      }
+    } else {
+      // Position is free, place building
+      this.createBuilding(clampedX, clampedY, buildingType)
+    }
+  }
+
+  /**
+   * Creates a building at the specified position
+   * @param x - X position to place building
+   * @param y - Y position to place building
+   * @param buildingType - Type of building to create
+   */
+  private createBuilding(x: number, y: number, buildingType: BuildingType): void {
+    const buildingConfig: BuildingConfig = {
+      x: x,
+      y: y,
+      type: buildingType
+    }
+    
+    const building = new Building(this, buildingConfig)
+    this.buildings.push(building)
+    
+    // Set depth so buildings appear above grass but below player
+    building.setDepth(0.8)
+    
+    // Building placed successfully
+  }
+
+  /**
+   * Handles building selection changes from the player
+   * @param buildingType - The newly selected building type
+   * @param selectedIndex - The index of the selected building
+   */
+  public onBuildingSelectionChanged(_buildingType: string, selectedIndex: number): void {
+    if (this.buildingUIManager) {
+      this.buildingUIManager.updateSelection(selectedIndex)
+    }
+  }
+
+  /**
+   * Handles building placement requests from the player
+   * @param buildingType - The building type to place
+   */
+  public onBuildingPlacementRequested(buildingType: string): void {
+    this.placeBuilding(buildingType as BuildingType)
+  }
+
+  /**
+   * Gets the current number of active buildings
+   */
+  public getBuildingCount(): number {
+    return this.buildings.length
+  }
+
+  /**
+   * Clears all buildings (useful for testing or game reset)
+   */
+  public clearAllBuildings(): void {
+    this.buildings.forEach(building => {
+      if (building.active) {
+        building.destroy()
+      }
+    })
+    this.buildings = []
+    // All buildings cleared
+  }
+
+  // ============================================================================
   // GAME OVER AND REPLAY SYSTEM
   // ============================================================================
 
@@ -533,8 +719,9 @@ export class GameScene extends Phaser.Scene {
     // Hide game over screen
     this.hideGameOverScreen()
     
-    // Clear all enemies
+    // Clear all enemies and buildings
     this.clearAllEnemies()
+    this.clearAllBuildings()
     
     // Reset grass positions
     this.grassPositions = []

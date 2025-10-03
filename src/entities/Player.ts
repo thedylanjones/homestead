@@ -1,139 +1,518 @@
+// Import Phaser game engine and our configuration settings
 import Phaser from 'phaser'
 import { PLAYER_CONFIG } from '../config/variables'
 
 /**
  * Player Configuration Interface
- * Defines the initial setup parameters for the player
+ * 
+ * This defines what information we need to create a player.
+ * Think of it like a form that needs to be filled out.
+ * 
+ * @interface PlayerConfig - The "form" for creating a player
  */
 export interface PlayerConfig {
-  x: number
-  y: number
-  speed: number
+  x: number // Starting X position (left/right on screen)
+  y: number // Starting Y position (up/down on screen)
+  speed: number // How fast the player moves
 }
 
 /**
- * Player Class
+ * Player Class - The main character the player controls
  * 
- * Represents the main character in the game. Handles movement, input,
- * and visual representation. Uses a loaded sprite image from assets.
+ * This class extends Phaser's Arcade.Sprite, which means it's a visual object
+ * that can be displayed on screen, moved around, and has physics.
+ * 
+ * Think of this like creating a character in a game - it has:
+ * - A visual appearance (sprite/image)
+ * - The ability to move around with physics
+ * - Input controls (keyboard keys)
+ * - Movement rules and collision detection
  */
 export class Player extends Phaser.Physics.Arcade.Sprite {
-  private speed: number
+  // ============================================================================
+  // PRIVATE PROPERTIES - Variables that only this class can use
+  // ============================================================================
+  
+  private speed: number // How fast this player moves (pixels per frame)
+  
+  // Health system
+  private maxHealth: number // Maximum health points
+  private currentHealth: number // Current health points
+  private isDead: boolean = false // Whether the player is dead
+  
+  // Health bar display
+  private healthBar: Phaser.GameObjects.Graphics | null = null // Health bar display
+  private healthBarBackground: Phaser.GameObjects.Graphics | null = null // Health bar background
+  
+  // Attack system
+  private lastAutoAttackTime: number = 0 // When the player last auto-attacked
+  private lastDirection: { x: number, y: number } = { x: 1, y: 0 } // Last movement direction
+  private attackVisual: Phaser.GameObjects.Graphics | null = null // Attack visual indicator
+  private isAttackActive: boolean = false // Whether an attack is currently active
+  private hitEnemies: Set<any> = new Set() // Track which enemies have been hit by current attack
+  
+  // Arrow keys (up, down, left, right)
   private cursors: Phaser.Types.Input.Keyboard.CursorKeys | null = null
+  
+  // WASD keys for movement (W=up, A=left, S=down, D=right)
   private wasdKeys: {
-    W: Phaser.Input.Keyboard.Key
-    A: Phaser.Input.Keyboard.Key
-    S: Phaser.Input.Keyboard.Key
-    D: Phaser.Input.Keyboard.Key
+    W: Phaser.Input.Keyboard.Key // Up movement key
+    A: Phaser.Input.Keyboard.Key // Left movement key
+    S: Phaser.Input.Keyboard.Key // Down movement key
+    D: Phaser.Input.Keyboard.Key // Right movement key
   } | null = null
 
+  // ============================================================================
+  // CONSTRUCTOR - Runs when a new Player is created
+  // ============================================================================
+  
+  /**
+   * Creates a new Player
+   * @param scene - The game scene this player belongs to
+   * @param config - Configuration object with starting position and speed
+   */
   constructor(scene: Phaser.Scene, config: PlayerConfig) {
-    // Initialize the sprite with the loaded player sprite image
+    // Call the parent constructor to create the sprite with the player image
     super(scene, config.x, config.y, 'player-sprite')
     
+    // Store the movement speed for later use
     this.speed = config.speed
     
-    // Add to scene and enable physics
+    // Initialize health system
+    this.maxHealth = PLAYER_CONFIG.MAX_HEALTH
+    this.currentHealth = this.maxHealth
+    
+    // Add this sprite to the scene so it appears on screen
     scene.add.existing(this)
+    
+    // Enable physics for this sprite so it can move and collide with things
     scene.physics.add.existing(this)
     
-    // Set up physics body properties
+    // Set up physics body properties (how it moves, collides, etc.)
     this.setupPhysics()
     
-    // Set up input controls
+    // Set up input controls (keyboard keys for movement)
     this.setupInput()
+    
+    // Create health bar display
+    this.createHealthBar()
   }
 
 
+  // ============================================================================
+  // PHYSICS SETUP - How the player moves and collides
+  // ============================================================================
+  
   /**
-   * Sets up physics properties for the player - OPTIMIZED
+   * Sets up physics properties for the player
+   * 
+   * This method configures how the player behaves in the game world:
+   * - How it collides with world boundaries
+   * - How much friction it has when moving
+   * - What size its collision box is
+   * - How big it appears on screen
    */
   private setupPhysics(): void {
-    this.setCollideWorldBounds(true) // Prevent player from leaving the world
-    this.setDrag(PLAYER_CONFIG.DRAG) // Add friction for smooth movement
-    this.body!.setSize(32, 32) // Set collision box size to match sprite
-    this.setScale(2) // Scale up the sprite for better visibility
+    // Prevent player from leaving the game world (like invisible walls)
+    this.setCollideWorldBounds(true)
     
-    // OPTIMIZATION: Configure physics body for better performance
-    if (this.body && 'immovable' in this.body) {
-      this.body.immovable = false // Allow movement
-    }
-    if (this.body && 'bounce' in this.body) {
-      this.body.bounce.set(0, 0) // No bouncing for better performance
-    }
-    if (this.body && 'maxVelocity' in this.body) {
-      this.body.maxVelocity.set(PLAYER_CONFIG.SPEED, PLAYER_CONFIG.SPEED) // Limit max velocity
-    }
+    // Add friction so the player doesn't slide forever (like ice vs carpet)
+    this.setDrag(PLAYER_CONFIG.DRAG)
+    
+    // Set the collision box size (the invisible box used for collision detection)
+    this.body!.setSize(PLAYER_CONFIG.SIZE, PLAYER_CONFIG.SIZE)
+    
+    // Use the scale from configuration (2.0 = double size)
+    this.setScale(PLAYER_CONFIG.SCALE)
   }
 
+  // ============================================================================
+  // INPUT SETUP - How the player controls the character
+  // ============================================================================
+  
   /**
    * Sets up input controls for player movement
-   * Supports both WASD keys and arrow keys
+   * 
+   * This method creates keyboard controls so the player can move around.
+   * We support both WASD keys and arrow keys for flexibility.
    */
   private setupInput(): void {
-    // Set up WASD keys for movement
+    // Set up WASD keys for movement (common in PC games)
     this.wasdKeys = this.scene.input.keyboard!.addKeys('W,A,S,D') as {
-      W: Phaser.Input.Keyboard.Key
-      A: Phaser.Input.Keyboard.Key
-      S: Phaser.Input.Keyboard.Key
-      D: Phaser.Input.Keyboard.Key
+      W: Phaser.Input.Keyboard.Key // W key for moving up
+      A: Phaser.Input.Keyboard.Key // A key for moving left
+      S: Phaser.Input.Keyboard.Key // S key for moving down
+      D: Phaser.Input.Keyboard.Key // D key for moving right
     }
     
-    // Also set up cursor keys as alternative control scheme
+    // Also set up arrow keys as an alternative control scheme
     this.cursors = this.scene.input.keyboard!.createCursorKeys()
   }
 
+  // ============================================================================
+  // UPDATE METHOD - Called every frame to update the player
+  // ============================================================================
+  
   /**
-   * Updates player movement and position - OPTIMIZED
-   * Called every frame by the game loop
+   * Updates player movement and position
+   * 
+   * This method is called every frame (60 times per second) by the game loop.
+   * It handles all the player's movement and input processing.
    */
   public update(): void {
+    // Don't update if dead
+    if (this.isDead) return
+    
+    // Safety check: make sure input keys are set up
     if (!this.wasdKeys || !this.cursors) return
 
-    // OPTIMIZATION: Only reset velocity if there's no input
-    const hasInput = this.wasdKeys.W.isDown || this.wasdKeys.S.isDown || 
-                    this.wasdKeys.A.isDown || this.wasdKeys.D.isDown ||
-                    this.cursors.up.isDown || this.cursors.down.isDown ||
-                    this.cursors.left.isDown || this.cursors.right.isDown
+    // Reset velocity to zero each frame for smooth movement
+    // This prevents the player from sliding around uncontrollably
+    this.setVelocity(0)
 
-    if (!hasInput) {
-      // Only reset velocity when no input is detected
-      this.setVelocity(0)
-    } else {
-      // Handle movement input
-      this.handleMovement()
-    }
+    // Handle movement input (check which keys are pressed and move accordingly)
+    this.handleMovement()
+    
+    // Update health bar position
+    this.updateHealthBar()
+    
+    // Update attack visual if it exists
+    this.updateAttackVisual()
+    
+    // Check for auto-attack
+    this.checkAutoAttack()
   }
 
+  // ============================================================================
+  // MOVEMENT HANDLING - How the player moves based on input
+  // ============================================================================
+  
   /**
-   * Handles player movement based on input
+   * Handles player movement based on keyboard input
+   * 
+   * This method checks which keys are currently pressed and moves the player
+   * in the appropriate direction. It supports both WASD and arrow keys.
    */
   private handleMovement(): void {
+    // Safety check: make sure input keys are set up
     if (!this.wasdKeys || !this.cursors) return
 
-    // Vertical movement (W/S or Up/Down arrows)
+    // ============================================================================
+    // VERTICAL MOVEMENT (Up and Down)
+    // ============================================================================
+    
+    // Move up if W key or Up arrow is pressed
     if (this.wasdKeys.W.isDown || this.cursors.up.isDown) {
-      this.setVelocityY(-this.speed)
-    }
-    if (this.wasdKeys.S.isDown || this.cursors.down.isDown) {
-      this.setVelocityY(this.speed)
+      this.setVelocityY(-this.speed) // Negative Y moves up
+      this.lastDirection = { x: 0, y: -1 } // Update last direction
     }
     
-    // Horizontal movement (A/D or Left/Right arrows)
-    if (this.wasdKeys.A.isDown || this.cursors.left.isDown) {
-      this.setVelocityX(-this.speed)
+    // Move down if S key or Down arrow is pressed
+    if (this.wasdKeys.S.isDown || this.cursors.down.isDown) {
+      this.setVelocityY(this.speed) // Positive Y moves down
+      this.lastDirection = { x: 0, y: 1 } // Update last direction
     }
+    
+    // ============================================================================
+    // HORIZONTAL MOVEMENT (Left and Right)
+    // ============================================================================
+    
+    // Move left if A key or Left arrow is pressed
+    if (this.wasdKeys.A.isDown || this.cursors.left.isDown) {
+      this.setVelocityX(-this.speed) // Negative X moves left
+      this.lastDirection = { x: -1, y: 0 } // Update last direction
+    }
+    
+    // Move right if D key or Right arrow is pressed
     if (this.wasdKeys.D.isDown || this.cursors.right.isDown) {
-      this.setVelocityX(this.speed)
+      this.setVelocityX(this.speed) // Positive X moves right
+      this.lastDirection = { x: 1, y: 0 } // Update last direction
     }
   }
 
   // ============================================================================
-  // PUBLIC GETTERS AND SETTERS
+  // HEALTH BAR SYSTEM - Visual health display
+  // ============================================================================
+  
+  /**
+   * Creates a health bar above the player
+   */
+  private createHealthBar(): void {
+    // Create health bar background (black rectangle)
+    this.healthBarBackground = this.scene.add.graphics()
+    this.healthBarBackground.fillStyle(PLAYER_CONFIG.HEALTH_BAR.BACKGROUND_COLOR)
+    this.healthBarBackground.fillRect(
+      -PLAYER_CONFIG.HEALTH_BAR.WIDTH / 2, 
+      PLAYER_CONFIG.HEALTH_BAR.OFFSET_Y, 
+      PLAYER_CONFIG.HEALTH_BAR.WIDTH, 
+      PLAYER_CONFIG.HEALTH_BAR.HEIGHT
+    )
+    this.healthBarBackground.setDepth(10) // Make sure it's visible
+    
+    // Create health bar (green/red rectangle)
+    this.healthBar = this.scene.add.graphics()
+    this.healthBar.setDepth(11) // Above the background
+    
+    // Update the health bar display
+    this.updateHealthBar()
+  }
+
+  /**
+   * Updates the health bar display
+   */
+  private updateHealthBar(): void {
+    if (!this.healthBar || !this.healthBarBackground) return
+    
+    // Clear previous health bar
+    this.healthBar.clear()
+    
+    // Calculate health percentage
+    const healthPercent = this.currentHealth / this.maxHealth
+    
+    // Choose color based on health (green when healthy, red when damaged)
+    const healthColor = healthPercent > 0.5 ? 
+      PLAYER_CONFIG.HEALTH_BAR.HEALTH_COLOR : 
+      PLAYER_CONFIG.HEALTH_BAR.DAMAGE_COLOR
+    
+    // Draw health bar
+    this.healthBar.fillStyle(healthColor)
+    this.healthBar.fillRect(
+      -PLAYER_CONFIG.HEALTH_BAR.WIDTH / 2, 
+      PLAYER_CONFIG.HEALTH_BAR.OFFSET_Y, 
+      PLAYER_CONFIG.HEALTH_BAR.WIDTH * healthPercent, 
+      PLAYER_CONFIG.HEALTH_BAR.HEIGHT
+    )
+    
+    // Update positions to follow the player
+    this.healthBarBackground.x = this.x
+    this.healthBarBackground.y = this.y
+    this.healthBar.x = this.x
+    this.healthBar.y = this.y
+  }
+
+  // ============================================================================
+  // DAMAGE AND HEALTH SYSTEM
+  // ============================================================================
+  
+  /**
+   * Takes damage and updates health
+   * @param damage - Amount of damage to take
+   */
+  public takeDamage(damage: number): void {
+    this.currentHealth -= damage
+    
+    // Make sure health doesn't go below 0
+    if (this.currentHealth <= 0) {
+      this.currentHealth = 0
+      this.die()
+    }
+    
+    // Update health bar display
+    this.updateHealthBar()
+    
+    console.log(`Player takes ${damage} damage! Health: ${this.currentHealth}/${this.maxHealth}`)
+  }
+
+  /**
+   * Heals the player
+   * @param healing - Amount of health to restore
+   */
+  public heal(healing: number): void {
+    this.currentHealth += healing
+    
+    // Make sure health doesn't go above maximum
+    if (this.currentHealth > this.maxHealth) {
+      this.currentHealth = this.maxHealth
+    }
+    
+    // Update health bar display
+    this.updateHealthBar()
+    
+    console.log(`Player heals for ${healing}! Health: ${this.currentHealth}/${this.maxHealth}`)
+  }
+
+  /**
+   * Handles player death
+   */
+  private die(): void {
+    this.isDead = true
+    
+    // Stop moving
+    this.setVelocity(0)
+    
+    // Hide the player (you could add death animation here)
+    this.setVisible(false)
+    
+    // Clean up health bar
+    if (this.healthBar) {
+      this.healthBar.destroy()
+      this.healthBar = null
+    }
+    if (this.healthBarBackground) {
+      this.healthBarBackground.destroy()
+      this.healthBarBackground = null
+    }
+    
+    console.log('Player has died! Game Over!')
+    
+    // Trigger game over screen
+    if (this.scene && 'showGameOverScreen' in this.scene) {
+      (this.scene as any).showGameOverScreen()
+    }
+  }
+
+  // ============================================================================
+  // ATTACK SYSTEM - Player attack functionality
+  // ============================================================================
+  
+  /**
+   * Checks if auto-attack should trigger
+   */
+  private checkAutoAttack(): void {
+    // Don't auto-attack if dead
+    if (this.isDead) return
+    
+    // Check if enough time has passed since last auto-attack (convert seconds to milliseconds)
+    const currentTime = this.scene.time.now
+    const intervalMs = PLAYER_CONFIG.ATTACK.INTERVAL * 1000
+    
+    if (currentTime - this.lastAutoAttackTime >= intervalMs) {
+      this.performAutoAttack()
+      this.lastAutoAttackTime = currentTime
+    }
+  }
+
+  /**
+   * Performs an auto-attack
+   */
+  private performAutoAttack(): void {
+    // Set attack as active and clear previous hit enemies
+    this.isAttackActive = true
+    this.hitEnemies.clear()
+    
+    // Create attack visual
+    this.createAttackVisual()
+    
+    // Calculate attack position based on last direction
+    const attackX = this.x + (this.lastDirection.x * PLAYER_CONFIG.ATTACK.RANGE)
+    const attackY = this.y + (this.lastDirection.y * PLAYER_CONFIG.ATTACK.RANGE)
+    
+    console.log(`Player auto-attack in direction (${this.lastDirection.x}, ${this.lastDirection.y}) at (${attackX}, ${attackY})`)
+    
+    // The actual damage dealing will be handled by the GameScene collision detection
+  }
+
+  /**
+   * Creates the visual attack indicator
+   */
+  private createAttackVisual(): void {
+    // Remove existing attack visual if it exists
+    if (this.attackVisual) {
+      this.attackVisual.destroy()
+    }
+    
+    // Create new attack visual
+    this.attackVisual = this.scene.add.graphics()
+    this.attackVisual.fillStyle(PLAYER_CONFIG.ATTACK.COLOR)
+    
+    // Calculate attack position
+    const attackX = this.lastDirection.x * PLAYER_CONFIG.ATTACK.RANGE
+    const attackY = this.lastDirection.y * PLAYER_CONFIG.ATTACK.RANGE
+    
+    // Draw attack rectangle (white cube/slash)
+    this.attackVisual.fillRect(
+      attackX - PLAYER_CONFIG.ATTACK.SIZE / 2,
+      attackY - PLAYER_CONFIG.ATTACK.SIZE / 2,
+      PLAYER_CONFIG.ATTACK.SIZE,
+      PLAYER_CONFIG.ATTACK.SIZE
+    )
+    
+    // Position the attack visual relative to the player
+    this.attackVisual.x = this.x
+    this.attackVisual.y = this.y
+    this.attackVisual.setDepth(2) // Above player but below UI
+    
+    // Remove the attack visual after duration and deactivate attack
+    this.scene.time.delayedCall(PLAYER_CONFIG.ATTACK.VISUAL_DURATION * 1000, () => {
+      if (this.attackVisual) {
+        this.attackVisual.destroy()
+        this.attackVisual = null
+      }
+      // Deactivate attack when visual disappears and clear hit enemies
+      this.isAttackActive = false
+      this.hitEnemies.clear()
+    })
+  }
+
+  /**
+   * Updates the attack visual position to follow the player
+   */
+  private updateAttackVisual(): void {
+    if (this.attackVisual) {
+      this.attackVisual.x = this.x
+      this.attackVisual.y = this.y
+    }
+  }
+
+  /**
+   * Gets the current attack position for collision detection
+   */
+  public getAttackPosition(): { x: number, y: number } {
+    return {
+      x: this.x + (this.lastDirection.x * PLAYER_CONFIG.ATTACK.RANGE),
+      y: this.y + (this.lastDirection.y * PLAYER_CONFIG.ATTACK.RANGE)
+    }
+  }
+
+  /**
+   * Gets the attack damage
+   */
+  public getAttackDamage(): number {
+    return PLAYER_CONFIG.ATTACK.DAMAGE
+  }
+
+  /**
+   * Gets the attack size for collision detection
+   */
+  public getAttackSize(): number {
+    return PLAYER_CONFIG.ATTACK.SIZE
+  }
+
+  /**
+   * Gets the last direction the player was facing
+   */
+  public getLastDirection(): { x: number, y: number } {
+    return this.lastDirection
+  }
+
+  /**
+   * Checks if an attack is currently active
+   */
+  public isAttackCurrentlyActive(): boolean {
+    return this.isAttackActive
+  }
+
+  /**
+   * Checks if an enemy has already been hit by the current attack
+   */
+  public hasEnemyBeenHit(enemy: any): boolean {
+    return this.hitEnemies.has(enemy)
+  }
+
+  /**
+   * Marks an enemy as hit by the current attack
+   */
+  public markEnemyAsHit(enemy: any): void {
+    this.hitEnemies.add(enemy)
+  }
+
+  // ============================================================================
+  // PUBLIC GETTERS AND SETTERS - Methods other classes can use
   // ============================================================================
 
   /**
    * Gets the current movement speed
+   * @returns The current speed value in pixels per frame
    */
   public getSpeed(): number {
     return this.speed
@@ -141,9 +520,37 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   /**
    * Sets the movement speed
-   * @param speed - New speed value in pixels per second
+   * @param speed - New speed value in pixels per frame
    */
   public setSpeed(speed: number): void {
     this.speed = speed
+  }
+
+  /**
+   * Gets the current health
+   */
+  public getHealth(): number {
+    return this.currentHealth
+  }
+
+  /**
+   * Gets the maximum health
+   */
+  public getMaxHealth(): number {
+    return this.maxHealth
+  }
+
+  /**
+   * Checks if the player is dead
+   */
+  public isAlive(): boolean {
+    return !this.isDead
+  }
+
+  /**
+   * Gets the health percentage (0.0 to 1.0)
+   */
+  public getHealthPercentage(): number {
+    return this.currentHealth / this.maxHealth
   }
 }

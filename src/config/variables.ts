@@ -1,52 +1,110 @@
 /**
- * Game Configuration Variables
+ * Game Configuration Variables - Organized and Clean
  * 
- * This file contains all the key variables that you might want to easily change
- * to customize your game. Modify these values to adjust gameplay, appearance, and behavior.
+ * This file contains all game configuration variables organized by category.
+ * All player-related settings are consolidated in one section for easy management.
+ * 
+ * Key Concepts:
+ * - SIZE: Collision box size (invisible hitbox for collision detection)
+ * - SCALE: Visual scale (how big sprites appear on screen)
+ * - These can be different! Small collision box + large visual = precise collision
+ * 
+ * File Structure:
+ * 1. PLAYER_CONFIG - All player settings (movement, visual, health, attack)
+ * 2. WORLD_CONFIG - Game world dimensions and background
+ * 3. CAMERA_CONFIG - Camera behavior and follow settings
+ * 4. BACKGROUND_CONFIG - Background rendering settings
+ * 5. GRASS_CONFIG - Environmental decoration settings
+ * 6. ENEMY_CONFIG - Enemy types, stats, and spawning
+ * 7. GAME_CONFIG - General game and debug settings
+ * 
+ * Attack System:
+ * - Auto-attack system: attacks automatically every X seconds
+ * - Attacks in the direction the player last moved
+ * - White cube/slash shows attack hitbox for visual feedback
  */
 
 // ============================================================================
-// PLAYER CONFIGURATION
+// PLAYER CONFIGURATION - All player-related settings
 // ============================================================================
 
 export const PLAYER_CONFIG = {
-  // Movement speed (pixels per second)
-  SPEED: 200,
+  // ============================================================================
+  // MOVEMENT SETTINGS
+  // ============================================================================
   
-  // Player size (width and height in pixels)
-  SIZE: 32,
-  
-  // Player color (hex color code)
-  COLOR: 0x000000, // Black
+  // Movement speed (pixels per frame)
+  SPEED: 100,
   
   // Movement drag/friction (higher = more friction, smoother stops)
   DRAG: 300,
   
-  // Starting position (will be centered in world)
-  START_X: 0, // Will be overridden to world center
-  START_Y: 0, // Will be overridden to world center
+  // ============================================================================
+  // VISUAL SETTINGS
+  // ============================================================================
+  
+  // Player collision box size (width and height in pixels)
+  // This is the invisible box used for collision detection
+  SIZE: 32,
+  
+  // Player visual scale (1.0 = original size, 2.0 = double size, 0.5 = half size)
+  // This is how big the player appears on screen
+  SCALE: 2.0,
+  
+  // ============================================================================
+  // HEALTH SYSTEM
+  // ============================================================================
+  
+  // Starting health points
+  MAX_HEALTH: 100,
+  
+  // Health bar display settings
+  HEALTH_BAR: {
+    WIDTH: 60,        // Width of health bar in pixels
+    HEIGHT: 8,        // Height of health bar in pixels
+    OFFSET_Y: -40,    // How far above player to show health bar (negative = above)
+    BACKGROUND_COLOR: 0x000000,  // Black background
+    HEALTH_COLOR: 0x00ff00,      // Green when healthy
+    DAMAGE_COLOR: 0xff0000,      // Red when damaged
+  },
+  
+  // ============================================================================
+  // ATTACK SYSTEM
+  // ============================================================================
+  
+  // Player attack settings (auto-attack only)
+  ATTACK: {
+    DAMAGE: 20,         // How much damage the player's attack does
+    RANGE: 60,          // How far the attack reaches (pixels)
+    SIZE: 32,           // Size of the attack hitbox (pixels)
+    COLOR: 0xffffff,    // White color for attack indicator
+    
+    // Auto-attack system
+    INTERVAL: 2.0,        // Time between auto-attacks (in seconds) - set to 1.0 for 1 second
+    VISUAL_DURATION: 0.3, // How long the white cube/slash shows (seconds)
+  },
 } as const
 
 // ============================================================================
-// WORLD CONFIGURATION
+// WORLD CONFIGURATION - Game world settings
 // ============================================================================
 
 export const WORLD_CONFIG = {
-  // World dimensions (pixels)
-  WIDTH: 4096,
-  HEIGHT: 3072,
+  // World dimensions (pixels) - matches actual usage in GameScene
+  WIDTH: 2000,
+  HEIGHT: 2000,
   
   // Background color (fallback color)
   BACKGROUND_COLOR: '#63ab3f', // Green
 } as const
 
 // ============================================================================
-// CAMERA CONFIGURATION
+// CAMERA CONFIGURATION - Camera behavior settings
 // ============================================================================
 
 export const CAMERA_CONFIG = {
   // Camera zoom level (1.0 = normal, 0.8 = zoomed out, 1.2 = zoomed in)
-  ZOOM: 0.8,
+  ZOOM: 1,
   
   // Camera follow smoothness (0.1 = smooth, 0.05 = very smooth, 0.2 = snappy)
   FOLLOW_SPEED_X: 0.1,
@@ -58,63 +116,85 @@ export const CAMERA_CONFIG = {
 } as const
 
 // ============================================================================
-// BACKGROUND CONFIGURATION
+// BACKGROUND CONFIGURATION - Background rendering settings
 // ============================================================================
 
 export const BACKGROUND_CONFIG = {
-  // Background type: solid green gradient
-  TYPE: 'gradient' as 'gradient',
-  
-  // Solid green background colors
+  // Solid green background colors (all the same for a flat green look)
   GRADIENT_COLORS: {
     TOP: 0x63ab3f,      // Green
     MID_TOP: 0x63ab3f,  // Green
     MID_BOTTOM: 0x63ab3f, // Green
     BOTTOM: 0x63ab3f,   // Green
   },
+} as const
+
+// ============================================================================
+// GRASS CONFIGURATION - Grass decoration settings
+// ============================================================================
+
+export const GRASS_CONFIG = {
+  // Spacing between grass sprites (pixels) - larger = fewer grass sprites
+  SPACING: 300,
   
-  // Grass texture settings
-  GRASS: {
-    COUNT: 200,           // Number of grass blades
-    COLOR: 0x228B22,      // Forest green
-    OPACITY: 0.3,         // Transparency (0.0 = invisible, 1.0 = opaque)
-    MIN_HEIGHT: 3,        // Minimum grass blade height
-    MAX_HEIGHT: 8,        // Maximum grass blade height
+  // Scale multiplier for grass sprites (2 = double size)
+  SCALE: 2,
+} as const
+
+// ============================================================================
+// ENEMY CONFIGURATION - Enemy types and behavior settings
+// ============================================================================
+
+export const ENEMY_CONFIG = {
+  // ============================================================================
+  // ENEMY TYPES - Different enemy behaviors and stats
+  // ============================================================================
+  
+  TYPES: {
+    DOG: {
+      NAME: 'dog',
+      // Movement and combat
+      SPEED: 50,           // How fast the enemy moves (pixels per frame)
+      DAMAGE: 1,          // How much damage this enemy does per hit
+      ATTACK_RANGE: 10,    // How close enemy needs to be to attack (pixels)
+      ATTACK_COOLDOWN: 1.0, // Time between attacks (in seconds)
+      HEALTH: 10,          // Enemy's health points
+      // Visual properties
+      SIZE: 24,            // Collision box size (invisible hitbox)
+      SCALE: 1.5,          // Visual scale (how big it appears on screen)
+      COLOR: 0x8B4513,     // Brown color for dog
+    },
+    OFFICER: {
+      NAME: 'officer',
+      // Movement and combat (different from dog)
+      SPEED: 30,           // Slower than dog
+      DAMAGE: 20,          // More damage than dog
+      ATTACK_RANGE: 80,    // Can attack from further away
+      ATTACK_COOLDOWN: 2.0, // Slower attack rate (in seconds)
+      HEALTH: 60,          // More health than dog
+      // Visual properties
+      SIZE: 28,            // Slightly larger collision box
+      SCALE: 1.8,          // Bigger visual appearance
+      COLOR: 0x000080,     // Navy blue color for officer
+    },
   },
   
-  // Dirt spots settings
-  DIRT: {
-    COUNT: 50,            // Number of dirt spots
-    COLOR: 0x654321,      // Dark brown
-    OPACITY: 0.2,         // Transparency
-    MIN_SIZE: 2,          // Minimum dirt spot size
-    MAX_SIZE: 6,          // Maximum dirt spot size
-  },
+  // ============================================================================
+  // SPAWN SETTINGS - How enemies appear in the game
+  // ============================================================================
   
-  // Atmospheric effects
-  ATMOSPHERE: {
-    CLOUD_COUNT: 8,       // Number of cloud-like shapes
-    CLOUD_COLOR: 0xFFE4B5, // Moccasin color
-    CLOUD_OPACITY: 0.15,  // Cloud transparency
-    CLOUD_MIN_SIZE: 30,   // Minimum cloud size
-    CLOUD_MAX_SIZE: 80,   // Maximum cloud size
-    CLOUD_MAX_Y: 0.4,     // Maximum Y position (as fraction of world height)
-    
-    LIGHT_RAY_COUNT: 5,   // Number of light rays
-    LIGHT_RAY_COLOR: 0xFFD700, // Gold color
-    LIGHT_RAY_OPACITY: 0.1,    // Light ray transparency
-    LIGHT_RAY_LENGTH: 200,     // Maximum light ray length
+  SPAWN: {
+    MAX_ENEMIES: 10,       // Maximum number of enemies on screen
+    SPAWN_DISTANCE: 400,   // How far from player to spawn enemies (pixels)
+    SPAWN_INTERVAL: 3000,  // Time between enemy spawns (milliseconds)
   },
 } as const
 
 // ============================================================================
-// GAME CONFIGURATION
+// GAME CONFIGURATION - General game settings
 // ============================================================================
 
 export const GAME_CONFIG = {
-  // Game title
-  TITLE: 'Homestead - Phaser 3 Game',
-  
   // Development settings
   DEBUG: {
     PHYSICS: false,       // Show physics debug info

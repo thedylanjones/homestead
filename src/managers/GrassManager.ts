@@ -21,7 +21,7 @@ export class GrassManager {
    * @param grassTextureKey - The name of the grass image to use
    */
   createGrass(grassTextureKey: string): void {
-    console.log('Creating grass...')
+    // Creating grass
     
     // First, generate random positions for grass
     this.generateGrassPositions()
@@ -29,7 +29,7 @@ export class GrassManager {
     // Then create the actual grass sprites
     this.createGrassSprites(grassTextureKey)
     
-    console.log(`Created ${this.grassPositions.length} grass sprites`)
+    // Grass sprites created
   }
 
   /**
@@ -43,7 +43,7 @@ export class GrassManager {
     // Calculate how many grass sprites we can fit
     const grassCount = Math.floor((worldWidth / spacing) * (worldHeight / spacing))
     
-    console.log(`Generating ${grassCount} grass positions with ${spacing}px spacing`)
+    // Generating grass positions
     
     this.grassPositions = []
     
@@ -78,5 +78,13 @@ export class GrassManager {
    */
   getGrassCount(): number {
     return this.grassPositions.length
+  }
+
+  /**
+   * Gets the grass positions array
+   * @returns Array of grass positions
+   */
+  getGrassPositions(): { x: number, y: number, rotation: number }[] {
+    return this.grassPositions
   }
 }

@@ -19,7 +19,7 @@ export class BackgroundManager {
    * Creates a simple green background
    */
   createBackground(): void {
-    console.log('Creating background...')
+    // Creating background
     
     // Get world size
     const worldWidth = this.scene.physics.world.bounds.width
@@ -42,6 +42,6 @@ export class BackgroundManager {
     // Put background behind everything else
     graphics.setDepth(-10)
     
-    console.log('Background created successfully')
+    // Background created successfully
   }
 }

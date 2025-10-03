@@ -39,7 +39,7 @@ export class PerformanceMonitor {
     this.lastFrameTime = scene.time.now
     this.frameCount = 0
     
-    console.log('Performance monitoring enabled')
+    // Performance monitoring enabled
   }
 
   /**
@@ -47,8 +47,9 @@ export class PerformanceMonitor {
    * Call this every frame in your game loop
    * @param scene - The game scene (needed for timing)
    * @param grassCount - Number of grass sprites (optional)
+   * @param enemyCount - Number of enemies on screen (optional)
    */
-  update(scene: Phaser.Scene, grassCount?: number): void {
+  update(scene: Phaser.Scene, grassCount?: number, enemyCount?: number): void {
     // Count frames
     this.frameCount++
     
@@ -63,15 +64,15 @@ export class PerformanceMonitor {
       
       // Update the display
       const grassInfo = grassCount ? `\nGrass: ${grassCount}` : ''
-      this.performanceText!.setText(`FPS: ${fps}\nMemory: ${memory}MB${grassInfo}`)
+      const enemyInfo = enemyCount ? `\nEnemies: ${enemyCount}` : ''
+      this.performanceText!.setText(`FPS: ${fps}\nMemory: ${memory}MB${grassInfo}${enemyInfo}`)
       
       // Reset counters
       this.lastUpdate = scene.time.now
       this.lastFrameTime = scene.time.now
       this.frameCount = 0
       
-      // Log to console too
-      console.log(`Performance: FPS=${fps}, Memory=${memory}MB${grassInfo}`)
+      // Performance updated
     }
   }
 }

@@ -5,9 +5,10 @@
  * All player-related settings are consolidated in one section for easy management.
  * 
  * Key Concepts:
- * - SIZE: Collision box size (invisible hitbox for collision detection)
- * - SCALE: Visual scale (how big sprites appear on screen)
- * - These can be different! Small collision box + large visual = precise collision
+ * - VISUAL_SIZE: How big the enemy appears on screen (visual representation)
+ * - HITBOX_SIZE: Collision box size (invisible hitbox for damage detection)
+ * - SCALE: Visual scale multiplier (how big sprites appear on screen)
+ * - These can be different! Small hitbox + large visual = precise collision
  * 
  * File Structure:
  * 1. PLAYER_CONFIG - All player settings (movement, visual, health, attack)
@@ -135,7 +136,7 @@ export const BACKGROUND_CONFIG = {
 
 export const GRASS_CONFIG = {
   // Spacing between grass sprites (pixels) - larger = fewer grass sprites
-  SPACING: 300,
+  SPACING: 400, // Increased spacing for fewer grass sprites = better performance
   
   // Scale multiplier for grass sprites (2 = double size)
   SCALE: 2,
@@ -155,27 +156,16 @@ export const ENEMY_CONFIG = {
       NAME: 'dog',
       // Movement and combat
       SPEED: 50,           // How fast the enemy moves (pixels per frame)
-      DAMAGE: 1,          // How much damage this enemy does per hit
+      DAMAGE: 5,          // How much damage this enemy does per hit
       ATTACK_RANGE: 10,    // How close enemy needs to be to attack (pixels)
-      ATTACK_COOLDOWN: 1.0, // Time between attacks (in seconds)
+      ATTACK_COOLDOWN: 1, // Time between attacks (in seconds) - balanced with player health
       HEALTH: 10,          // Enemy's health points
       // Visual properties
-      SIZE: 24,            // Collision box size (invisible hitbox)
-      SCALE: 1.5,          // Visual scale (how big it appears on screen)
+      VISUAL_SIZE: 24,     // Visual size (how big the enemy appears on screen)
+      SCALE: 1.5,          // Visual scale multiplier (how big it appears on screen)
       COLOR: 0x8B4513,     // Brown color for dog
-    },
-    OFFICER: {
-      NAME: 'officer',
-      // Movement and combat (different from dog)
-      SPEED: 30,           // Slower than dog
-      DAMAGE: 20,          // More damage than dog
-      ATTACK_RANGE: 80,    // Can attack from further away
-      ATTACK_COOLDOWN: 2.0, // Slower attack rate (in seconds)
-      HEALTH: 60,          // More health than dog
-      // Visual properties
-      SIZE: 28,            // Slightly larger collision box
-      SCALE: 1.8,          // Bigger visual appearance
-      COLOR: 0x000080,     // Navy blue color for officer
+      // Collision properties
+      HITBOX_SIZE: 26,     // Collision box size (invisible hitbox for damage detection)
     },
   },
   
@@ -184,9 +174,9 @@ export const ENEMY_CONFIG = {
   // ============================================================================
   
   SPAWN: {
-    MAX_ENEMIES: 10,       // Maximum number of enemies on screen
+    MAX_ENEMIES: 100,      // Much higher enemy count for proper gameplay
     SPAWN_DISTANCE: 400,   // How far from player to spawn enemies (pixels)
-    SPAWN_INTERVAL: 3000,  // Time between enemy spawns (milliseconds)
+    SPAWN_INTERVAL: 1000,  // Faster spawning for more action (1 second)
   },
 } as const
 
@@ -200,4 +190,6 @@ export const GAME_CONFIG = {
     PHYSICS: false,       // Show physics debug info
     CONSOLE_LOGS: true,   // Show console debug messages
   },
+  // Performance settings
+  PERFORMANCE_MODE: true, // Enable aggressive performance optimizations
 } as const

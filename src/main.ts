@@ -17,9 +17,9 @@ const config: Phaser.Types.Core.GameConfig = {
   // GAME RENDERING SETTINGS - How the game looks and performs
   // ============================================================================
   
-  type: Phaser.WEBGL, // Use WebGL renderer for better performance (like using a graphics card)
-  width: 1280, // Game window width in pixels (1280 is good for 60+ FPS)
-  height: 720, // Game window height in pixels (720 is good for 60+ FPS)
+  type: Phaser.CANVAS, // Use Canvas renderer for better compatibility and performance
+  width: 1024, // Reduced resolution for better performance
+  height: 576, // Reduced resolution for better performance
   parent: 'game-container', // HTML element where the game will be displayed
   
   // ============================================================================
@@ -60,10 +60,10 @@ const config: Phaser.Types.Core.GameConfig = {
   // ============================================================================
   
   scale: {
-    mode: Phaser.Scale.FIT, // Fit game to screen without stretching
+    mode: Phaser.Scale.RESIZE, // Fill entire screen without black bars
     autoCenter: Phaser.Scale.CENTER_BOTH, // Center the game on screen
-    width: 1280, // Fixed width for consistent performance
-    height: 720 // Fixed height for consistent performance
+    width: 1024, // Base width for consistent performance
+    height: 576 // Base height for consistent performance
   },
   
   // ============================================================================
@@ -72,10 +72,10 @@ const config: Phaser.Types.Core.GameConfig = {
   
   render: {
     pixelArt: false, // Not using pixel art style
-    antialias: true, // Smooth edges on graphics (makes things look less jagged)
-    roundPixels: false, // Don't round pixels (keeps movement smooth)
-    batchSize: 8192, // Draw many objects at once for better performance
-    maxTextures: 32, // Maximum number of images that can be loaded
+    antialias: false, // Disabled for better performance
+    roundPixels: true, // Round pixels for better performance
+    batchSize: 4096, // Reduced batch size for better performance
+    maxTextures: 16, // Reduced texture limit for better performance
     clearBeforeRender: true, // Clear screen before drawing new frame
     preserveDrawingBuffer: false, // Don't save previous frames (saves memory)
     failIfMajorPerformanceCaveat: false // Don't crash if performance is bad

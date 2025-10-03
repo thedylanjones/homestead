@@ -166,15 +166,11 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     // Safety check: make sure input keys are set up
     if (!this.wasdKeys || !this.cursors) return
 
-    // Reset velocity to zero each frame for smooth movement
-    // This prevents the player from sliding around uncontrollably
-    this.setVelocity(0)
-
     // Handle movement input (check which keys are pressed and move accordingly)
     this.handleMovement()
     
-    // Update health bar position
-    this.updateHealthBar()
+    // Update health bar position only if health changed
+    this.updateHealthBarPosition()
     
     // Update attack visual if it exists
     this.updateAttackVisual()
@@ -197,6 +193,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     // Safety check: make sure input keys are set up
     if (!this.wasdKeys || !this.cursors) return
 
+    let isMoving = false
+
     // ============================================================================
     // VERTICAL MOVEMENT (Up and Down)
     // ============================================================================
@@ -205,12 +203,14 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     if (this.wasdKeys.W.isDown || this.cursors.up.isDown) {
       this.setVelocityY(-this.speed) // Negative Y moves up
       this.lastDirection = { x: 0, y: -1 } // Update last direction
+      isMoving = true
     }
     
     // Move down if S key or Down arrow is pressed
     if (this.wasdKeys.S.isDown || this.cursors.down.isDown) {
       this.setVelocityY(this.speed) // Positive Y moves down
       this.lastDirection = { x: 0, y: 1 } // Update last direction
+      isMoving = true
     }
     
     // ============================================================================
@@ -221,12 +221,19 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     if (this.wasdKeys.A.isDown || this.cursors.left.isDown) {
       this.setVelocityX(-this.speed) // Negative X moves left
       this.lastDirection = { x: -1, y: 0 } // Update last direction
+      isMoving = true
     }
     
     // Move right if D key or Right arrow is pressed
     if (this.wasdKeys.D.isDown || this.cursors.right.isDown) {
       this.setVelocityX(this.speed) // Positive X moves right
       this.lastDirection = { x: 1, y: 0 } // Update last direction
+      isMoving = true
+    }
+
+    // Only reset velocity if not moving (optimization)
+    if (!isMoving) {
+      this.setVelocity(0)
     }
   }
 
@@ -258,7 +265,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   /**
-   * Updates the health bar display
+   * Updates the health bar display (only when health changes)
    */
   private updateHealthBar(): void {
     if (!this.healthBar || !this.healthBarBackground) return
@@ -282,6 +289,13 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       PLAYER_CONFIG.HEALTH_BAR.WIDTH * healthPercent, 
       PLAYER_CONFIG.HEALTH_BAR.HEIGHT
     )
+  }
+
+  /**
+   * Updates health bar position (called every frame)
+   */
+  private updateHealthBarPosition(): void {
+    if (!this.healthBar || !this.healthBarBackground) return
     
     // Update positions to follow the player
     this.healthBarBackground.x = this.x
@@ -310,7 +324,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     // Update health bar display
     this.updateHealthBar()
     
-    console.log(`Player takes ${damage} damage! Health: ${this.currentHealth}/${this.maxHealth}`)
+    // Player takes damage
   }
 
   /**
@@ -328,7 +342,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     // Update health bar display
     this.updateHealthBar()
     
-    console.log(`Player heals for ${healing}! Health: ${this.currentHealth}/${this.maxHealth}`)
+    // Player heals
   }
 
   /**
@@ -353,7 +367,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       this.healthBarBackground = null
     }
     
-    console.log('Player has died! Game Over!')
+    // Player has died
     
     // Trigger game over screen
     if (this.scene && 'showGameOverScreen' in this.scene) {
@@ -393,11 +407,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     // Create attack visual
     this.createAttackVisual()
     
-    // Calculate attack position based on last direction
-    const attackX = this.x + (this.lastDirection.x * PLAYER_CONFIG.ATTACK.RANGE)
-    const attackY = this.y + (this.lastDirection.y * PLAYER_CONFIG.ATTACK.RANGE)
-    
-    console.log(`Player auto-attack in direction (${this.lastDirection.x}, ${this.lastDirection.y}) at (${attackX}, ${attackY})`)
+    // Player auto-attack
     
     // The actual damage dealing will be handled by the GameScene collision detection
   }

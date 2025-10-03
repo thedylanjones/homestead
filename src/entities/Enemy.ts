@@ -15,9 +15,10 @@ export interface EnemyTypeConfig {
   ATTACK_RANGE: number
   ATTACK_COOLDOWN: number
   HEALTH: number
-  SIZE: number
+  VISUAL_SIZE: number
   SCALE: number
   COLOR: number
+  HITBOX_SIZE: number
 }
 
 /**
@@ -54,12 +55,10 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
   private maxHealth: number // Maximum health points
   private currentHealth: number // Current health points
   private target: Phaser.Physics.Arcade.Sprite | null = null // What this enemy is chasing
-  private lastAttackTime: number = 0 // When this enemy last attacked
+  public lastAttackTime: number = 0 // When this enemy last attacked (public for GameScene access)
   private isDead: boolean = false // Whether this enemy is dead
   
-  // Visual elements
-  private healthBar: Phaser.GameObjects.Graphics | null = null // Health bar display
-  private healthBarBackground: Phaser.GameObjects.Graphics | null = null // Health bar background
+  // Visual elements (health bars removed for cleaner visuals)
 
   // ============================================================================
   // CONSTRUCTOR - Runs when a new Enemy is created
@@ -97,7 +96,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     // Set up physics and visual properties
     this.setupPhysics()
     this.setupVisuals()
-    this.createHealthBar()
+    // Health bars disabled for cleaner visuals and better performance
   }
 
   // ============================================================================
@@ -111,8 +110,8 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     // Prevent enemy from leaving the game world
     this.setCollideWorldBounds(true)
     
-    // Set the collision box size (invisible box used for collision detection)
-    this.body!.setSize(this.typeConfig.SIZE, this.typeConfig.SIZE)
+    // Set the collision box size using HITBOX_SIZE (invisible box used for collision detection)
+    this.body!.setSize(this.typeConfig.HITBOX_SIZE, this.typeConfig.HITBOX_SIZE)
     
     // Use the scale from configuration (how big it appears on screen)
     this.setScale(this.typeConfig.SCALE)
@@ -136,11 +135,11 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     // Set the color based on enemy type
     graphics.fillStyle(this.typeConfig.COLOR)
     
-    // Draw a rectangle (we'll use the collision box size for consistency)
-    graphics.fillRect(0, 0, this.typeConfig.SIZE, this.typeConfig.SIZE)
+    // Draw a rectangle using VISUAL_SIZE (how big it appears on screen)
+    graphics.fillRect(0, 0, this.typeConfig.VISUAL_SIZE, this.typeConfig.VISUAL_SIZE)
     
     // Generate a texture from the graphics
-    graphics.generateTexture('enemy-sprite', this.typeConfig.SIZE, this.typeConfig.SIZE)
+    graphics.generateTexture('enemy-sprite', this.typeConfig.VISUAL_SIZE, this.typeConfig.VISUAL_SIZE)
     
     // Clean up the graphics object (we don't need it anymore)
     graphics.destroy()
@@ -150,57 +149,8 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
   }
 
   // ============================================================================
-  // HEALTH BAR SYSTEM - Visual health display
+  // HEALTH BAR SYSTEM - REMOVED FOR CLEANER VISUALS
   // ============================================================================
-  
-  /**
-   * Creates a health bar above the enemy
-   */
-  private createHealthBar(): void {
-    // Create health bar background (black rectangle)
-    this.healthBarBackground = this.scene.add.graphics()
-    this.healthBarBackground.fillStyle(0x000000) // Black background
-    this.healthBarBackground.fillRect(-15, -25, 30, 4)
-    this.healthBarBackground.setDepth(10) // Make sure it's visible
-    
-    // Create health bar (green/red rectangle)
-    this.healthBar = this.scene.add.graphics()
-    this.healthBar.setDepth(11) // Above the background
-    
-    // Add both to this enemy's container so they move with the enemy
-    this.scene.add.container(this.x, this.y, [this.healthBarBackground, this.healthBar])
-    
-    // Update the health bar display
-    this.updateHealthBar()
-  }
-
-  /**
-   * Updates the health bar display
-   */
-  private updateHealthBar(): void {
-    if (!this.healthBar || !this.healthBarBackground) return
-    
-    // Clear previous health bar
-    this.healthBar.clear()
-    
-    // Calculate health percentage
-    const healthPercent = this.currentHealth / this.maxHealth
-    
-    // Choose color based on health (green when healthy, red when damaged)
-    const healthColor = healthPercent > 0.5 ? 0x00ff00 : 0xff0000
-    
-    // Draw health bar
-    this.healthBar.fillStyle(healthColor)
-    this.healthBar.fillRect(-15, -25, 30 * healthPercent, 4)
-    
-    // Update positions to follow the enemy
-    if (this.healthBarBackground) {
-      this.healthBarBackground.x = this.x
-      this.healthBarBackground.y = this.y - 25
-    }
-    this.healthBar.x = this.x
-    this.healthBar.y = this.y - 25
-  }
 
   // ============================================================================
   // AI BEHAVIOR - How the enemy thinks and acts
@@ -214,13 +164,12 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     // Don't update if dead
     if (this.isDead) return
     
-    // Update health bar position
-    this.updateHealthBar()
+    // Health bars removed for cleaner visuals
     
     // If we have a target, chase it
     if (this.target) {
       this.chaseTarget()
-      this.checkAttack()
+      // Attack logic is now handled by GameScene collision detection
     }
   }
 
@@ -234,14 +183,18 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     const dx = this.target.x - this.x
     const dy = this.target.y - this.y
     
-    // Calculate distance to target
-    const distance = Math.sqrt(dx * dx + dy * dy)
+    // Calculate squared distance to target (avoid expensive Math.sqrt)
+    const squaredDistance = dx * dx + dy * dy
+    const attackRangeSquared = this.typeConfig.ATTACK_RANGE * this.typeConfig.ATTACK_RANGE
     
     // If we're close enough to attack, stop moving
-    if (distance <= this.typeConfig.ATTACK_RANGE) {
+    if (squaredDistance <= attackRangeSquared) {
       this.setVelocity(0)
       return
     }
+    
+    // Calculate distance for normalization (only when needed)
+    const distance = Math.sqrt(squaredDistance)
     
     // Normalize direction (make it a unit vector)
     const normalizedDx = dx / distance
@@ -254,41 +207,6 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     )
   }
 
-  /**
-   * Checks if the enemy can attack and performs attack if possible
-   */
-  private checkAttack(): void {
-    if (!this.target) return
-    
-    // Calculate distance to target
-    const dx = this.target.x - this.x
-    const dy = this.target.y - this.y
-    const distance = Math.sqrt(dx * dx + dy * dy)
-    
-    // Check if we're in attack range
-    if (distance <= this.typeConfig.ATTACK_RANGE) {
-    // Check if enough time has passed since last attack (convert seconds to milliseconds)
-    const currentTime = this.scene.time.now
-    const cooldownMs = this.typeConfig.ATTACK_COOLDOWN * 1000
-    if (currentTime - this.lastAttackTime >= cooldownMs) {
-      this.attack()
-      this.lastAttackTime = currentTime
-    }
-    }
-  }
-
-  /**
-   * Performs an attack on the target
-   */
-  private attack(): void {
-    if (!this.target) return
-    
-    // For now, we'll just log the attack
-    // In the future, this could trigger damage on the player
-    console.log(`${this.typeConfig.NAME} attacks for ${this.typeConfig.DAMAGE} damage!`)
-    
-    // You can add attack effects here (particles, sound, etc.)
-  }
 
   // ============================================================================
   // DAMAGE AND HEALTH SYSTEM
@@ -307,10 +225,9 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       this.die()
     }
     
-    // Update health bar display
-    this.updateHealthBar()
+    // Health bars removed for cleaner visuals
     
-    console.log(`${this.typeConfig.NAME} takes ${damage} damage! Health: ${this.currentHealth}/${this.maxHealth}`)
+    // Enemy takes damage
   }
 
   /**
@@ -325,17 +242,9 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     // Hide the enemy (you could add death animation here)
     this.setVisible(false)
     
-    // Clean up health bar
-    if (this.healthBar) {
-      this.healthBar.destroy()
-      this.healthBar = null
-    }
-    if (this.healthBarBackground) {
-      this.healthBarBackground.destroy()
-      this.healthBarBackground = null
-    }
+    // Health bars removed for cleaner visuals
     
-    console.log(`${this.typeConfig.NAME} has died!`)
+    // Enemy has died
     
     // Destroy this enemy after a short delay
     this.scene.time.delayedCall(100, () => {
@@ -387,5 +296,35 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
    */
   public setTarget(target: Phaser.Physics.Arcade.Sprite): void {
     this.target = target
+  }
+
+  /**
+   * Gets the hitbox size for collision detection
+   */
+  public getHitboxSize(): number {
+    return this.typeConfig.HITBOX_SIZE
+  }
+
+  /**
+   * Checks if the enemy can attack right now (respects cooldown)
+   */
+  public canAttack(): boolean {
+    const currentTime = this.scene.time.now
+    const cooldownMs = this.typeConfig.ATTACK_COOLDOWN * 1000
+    return currentTime - this.lastAttackTime >= cooldownMs
+  }
+
+  /**
+   * Gets the attack cooldown time in seconds
+   */
+  public getAttackCooldown(): number {
+    return this.typeConfig.ATTACK_COOLDOWN
+  }
+
+  /**
+   * Updates the last attack time (used by GameScene)
+   */
+  public updateLastAttackTime(): void {
+    this.lastAttackTime = this.scene.time.now
   }
 }

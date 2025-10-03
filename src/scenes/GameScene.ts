@@ -2,13 +2,13 @@
 import Phaser from 'phaser'
 import { Player, PlayerConfig } from '../entities/Player'
 import { Enemy, EnemyConfig } from '../entities/Enemy'
+import { CameraManager } from '../managers/CameraManager'
+import { BackgroundManager } from '../managers/BackgroundManager'
+import { GrassManager } from '../managers/GrassManager'
+import { PerformanceMonitor } from '../utils/PerformanceMonitor'
 import { 
   WORLD_CONFIG, 
-  CAMERA_CONFIG, 
-  BACKGROUND_CONFIG, 
   PLAYER_CONFIG,
-  GAME_CONFIG,
-  GRASS_CONFIG,
   ENEMY_CONFIG
 } from '../config/variables'
 
@@ -43,13 +43,8 @@ export class GameScene extends Phaser.Scene {
   // Array to store all grass positions (x, y coordinates and rotation)
   private grassPositions: { x: number, y: number, rotation: number }[] = []
   
-  // Performance monitoring text that shows FPS and other stats
-  private performanceText: Phaser.GameObjects.Text | null = null
-  
-  // Variables for calculating FPS (frames per second)
-  private lastFpsUpdate: number = 0 // When we last updated the FPS display
-  private frameCount: number = 0 // How many frames have passed
-  private lastFrameTime: number = 0 // When the last frame was processed
+  // Performance monitoring system
+  private performanceMonitor: PerformanceMonitor | null = null
   
   // Game over UI elements
   private gameOverText: Phaser.GameObjects.Text | null = null
@@ -82,32 +77,17 @@ export class GameScene extends Phaser.Scene {
    * building a puzzle.
    */
   public preload(): void {
-    console.log('Loading assets...')
-    
     // Load the player character image
     this.load.image('player-sprite', '/assets/sprites/basic/player_basic.png')
-    console.log('Loading player-sprite from: /assets/sprites/basic/player_basic.png')
     
     // Load the basic grass image for world decoration
     this.load.image('grass-basic', '/assets/sprites/basic/grass_basic.png')
-    console.log('Loading grass-basic from: /assets/sprites/basic/grass_basic.png')
     
     // Try loading grass with a different path format (in case the first one fails)
     this.load.image('grass-basic-alt', './assets/sprites/basic/grass_basic.png')
-    console.log('Loading grass-basic-alt from: ./assets/sprites/basic/grass_basic.png')
     
     // Load an alternative grass texture for testing
     this.load.image('grass-alt', '/assets/sprites/Outdoor/Grass/grass_1-Sheet.png')
-    console.log('Loading grass-alt from: /assets/sprites/Outdoor/Grass/grass_1-Sheet.png')
-    
-    // Add event listeners to help debug asset loading
-    this.load.on('filecomplete', (key: string, type: string) => {
-      console.log(`Asset loaded successfully: ${key} (${type})`)
-    })
-    
-    this.load.on('loaderror', (file: any) => {
-      console.error(`Failed to load asset: ${file.key} from ${file.url}`)
-    })
   }
 
   // ============================================================================
@@ -138,15 +118,12 @@ export class GameScene extends Phaser.Scene {
     this.setupCamera()
     
     // Add performance monitoring (shows FPS and other stats)
-    this.setupPerformanceMonitoring()
+    this.performanceMonitor = new PerformanceMonitor(this)
     
     // Set up enemy collision detection
     this.setupEnemyCollisions()
     
-    // Log successful scene creation to console
-    if (GAME_CONFIG.DEBUG.CONSOLE_LOGS) {
-      console.log('GameScene created successfully')
-    }
+    // Scene creation complete
   }
 
   // ============================================================================
@@ -171,34 +148,9 @@ export class GameScene extends Phaser.Scene {
    * We use a gradient to make it look more interesting than a flat color.
    */
   private createBackground(): void {
-    this.createGradientBackground()
-  }
-
-
-  /**
-   * Creates the solid green background using a gradient
-   * 
-   * This method creates a green background that covers the entire game world.
-   * We use a gradient (even though it's all the same color) to make it look
-   * more professional and less flat.
-   */
-  private createGradientBackground(): void {
-    // Create a graphics object to draw the background
-    const graphics = this.add.graphics()
-    
-    // Set up the gradient colors (all green for a solid look)
-    graphics.fillGradientStyle(
-      BACKGROUND_CONFIG.GRADIENT_COLORS.TOP,      // Top color (green)
-      BACKGROUND_CONFIG.GRADIENT_COLORS.MID_TOP,  // Middle-top color (green)
-      BACKGROUND_CONFIG.GRADIENT_COLORS.MID_BOTTOM, // Middle-bottom color (green)
-      BACKGROUND_CONFIG.GRADIENT_COLORS.BOTTOM    // Bottom color (green)
-    )
-    
-    // Draw a rectangle covering the entire world
-    graphics.fillRect(0, 0, this.worldWidth, this.worldHeight)
-    
-    // Set the background to be behind everything else (depth -10)
-    graphics.setDepth(-10)
+    // Use BackgroundManager for consistent background creation
+    const backgroundManager = new BackgroundManager(this)
+    backgroundManager.createBackground()
   }
 
   // ============================================================================
@@ -215,64 +167,19 @@ export class GameScene extends Phaser.Scene {
     // Check which grass texture is available (try different names in case of loading issues)
     let grassTextureKey = 'grass-basic'
     if (!this.textures.exists('grass-basic')) {
-      console.log('grass-basic not found, trying grass-basic-alt...')
       if (this.textures.exists('grass-basic-alt')) {
         grassTextureKey = 'grass-basic-alt'
-        console.log('Using grass-basic-alt instead')
       } else {
-        console.error('Neither grass texture found! Available textures:', this.textures.list)
-        return
+        return // No grass texture available
       }
     }
     
-    console.log('Grass texture found! Creating ultra-optimized minimal grass system...')
-    console.log('Using texture key:', grassTextureKey)
+    // Use GrassManager for consistent grass creation
+    const grassManager = new GrassManager(this)
+    grassManager.createGrass(grassTextureKey)
     
-    // Generate random positions for all grass sprites (with reduced density for performance)
-    this.generateGrassPositions()
-    
-    // Create the actual grass sprites at those positions
-    this.createMinimalGrassSprites(grassTextureKey)
-    
-    if (GAME_CONFIG.DEBUG.CONSOLE_LOGS) {
-      console.log(`Created minimal grass system with ${this.grassPositions.length} grass positions`)
-    }
-  }
-
-  /**
-   * Pre-generates all grass positions for the world with reduced density
-   */
-  private generateGrassPositions(): void {
-    const grassSpacing = GRASS_CONFIG.SPACING // Use configuration for grass spacing
-    const grassCount = Math.floor((this.worldWidth / grassSpacing) * (this.worldHeight / grassSpacing))
-    
-    console.log(`Generating grass: World=${this.worldWidth}x${this.worldHeight}, Spacing=${grassSpacing}, Count=${grassCount}`)
-    
-    this.grassPositions = []
-    
-    for (let i = 0; i < grassCount; i++) {
-      const x = Phaser.Math.Between(0, this.worldWidth)
-      const y = Phaser.Math.Between(0, this.worldHeight)
-      const rotation = 0 // Always keep grass upright (no rotation)
-      
-      this.grassPositions.push({ x, y, rotation })
-    }
-    
-    console.log(`Generated ${this.grassPositions.length} grass positions`)
-  }
-
-  /**
-   * Creates minimal grass sprites for maximum performance
-   */
-  private createMinimalGrassSprites(grassTextureKey: string): void {
-    this.grassPositions.forEach((pos) => {
-      // Create grass sprite with doubled size
-      const grass = this.add.image(pos.x, pos.y, grassTextureKey)
-      grass.setScale(GRASS_CONFIG.SCALE) // Use configuration for grass scale
-      grass.setRotation(pos.rotation)
-      grass.setDepth(-1)
-      grass.setVisible(true)
-    })
+    // Store grass positions for performance monitoring
+    this.grassPositions = grassManager.getGrassPositions()
   }
 
 
@@ -290,13 +197,6 @@ export class GameScene extends Phaser.Scene {
     
     // Ensure player is on top of grass
     this.player.setDepth(1)
-    
-    // Debug logging
-    if (GAME_CONFIG.DEBUG.CONSOLE_LOGS) {
-      console.log('Player created at:', this.player.x, this.player.y)
-      console.log('Player visible:', this.player.visible)
-      console.log('Player alpha:', this.player.alpha)
-    }
   }
 
   /**
@@ -305,47 +205,11 @@ export class GameScene extends Phaser.Scene {
   private setupCamera(): void {
     if (!this.player) return
     
-    // Make camera follow the player smoothly
-    this.cameras.main.startFollow(
-      this.player, 
-      true, 
-      CAMERA_CONFIG.FOLLOW_SPEED_X, 
-      CAMERA_CONFIG.FOLLOW_SPEED_Y
-    )
-    
-    // Set camera bounds to the world
-    this.cameras.main.setBounds(0, 0, this.worldWidth, this.worldHeight)
-    
-    // Set camera zoom level
-    this.cameras.main.setZoom(CAMERA_CONFIG.ZOOM)
-    
-    // Set camera deadzone (0 = no deadzone, camera always follows)
-    this.cameras.main.setDeadzone(CAMERA_CONFIG.DEADZONE_X, CAMERA_CONFIG.DEADZONE_Y)
+    // Use CameraManager for consistent camera setup
+    const cameraManager = new CameraManager(this)
+    cameraManager.setupCamera(this.player)
   }
 
-  /**
-   * Sets up performance monitoring
-   */
-  private setupPerformanceMonitoring(): void {
-    // Always show performance monitoring for debugging
-    this.performanceText = this.add.text(10, 10, 'Loading...', {
-      fontSize: '18px',
-      color: '#00ff00',
-      backgroundColor: '#000000',
-      padding: { x: 8, y: 8 },
-      fontFamily: 'Arial, sans-serif',
-      stroke: '#000000',
-      strokeThickness: 2
-    })
-    this.performanceText.setDepth(1000) // Always on top
-    this.performanceText.setScrollFactor(0) // Don't scroll with camera
-    
-    // Initialize frame timing
-    this.lastFrameTime = this.time.now
-    this.frameCount = 0
-    
-    console.log('Performance monitoring enabled')
-  }
 
   /**
    * Game update loop - called every frame - OPTIMIZED
@@ -363,31 +227,9 @@ export class GameScene extends Phaser.Scene {
     // Spawn new enemies if needed
     this.spawnEnemies()
     
-    // Count frames for FPS calculation
-    this.frameCount++
-    
-    // Update performance monitoring (only every second to reduce overhead)
-    if (this.performanceText && this.time.now - this.lastFpsUpdate > 1000) {
-      // Calculate actual FPS
-      const actualFps = Math.round(this.frameCount * 1000 / (this.time.now - this.lastFrameTime))
-      const memory = (performance as any).memory ? 
-        Math.round((performance as any).memory.usedJSHeapSize / 1024 / 1024) : 0
-      
-      // Fix the display format
-      const grassCount = this.grassPositions.length
-      const enemyCount = this.enemies.length
-      this.performanceText.setText(`FPS: ${actualFps}\nMemory: ${memory}MB\nGrass: ${grassCount}\nEnemies: ${enemyCount}`)
-      
-      // Reset counters
-      this.lastFpsUpdate = this.time.now
-      this.lastFrameTime = this.time.now
-      this.frameCount = 0
-      
-      // Debug log to confirm it's working
-      console.log(`Performance: FPS=${actualFps}, Memory=${memory}MB, Grass=${grassCount}, Enemies=${enemyCount}`)
-      console.log(`World size: ${this.worldWidth}x${this.worldHeight}, Grass spacing: ${GRASS_CONFIG.SPACING}`)
-      console.log(`Game resolution: ${this.game.config.width}x${this.game.config.height}`)
-      console.log(`Renderer: WebGL`)
+    // Update performance monitoring
+    if (this.performanceMonitor) {
+      this.performanceMonitor.update(this, this.grassPositions.length, this.enemies.length)
     }
   }
 
@@ -438,22 +280,26 @@ export class GameScene extends Phaser.Scene {
   private checkEnemyPlayerCollision(enemy: Enemy): void {
     if (!this.player || !this.player.isAlive()) return
     
-    // Calculate distance between enemy and player
+    // Calculate squared distance between enemy and player (avoid Math.sqrt)
     const dx = this.player.x - enemy.x
     const dy = this.player.y - enemy.y
-    const distance = Math.sqrt(dx * dx + dy * dy)
+    const squaredDistance = dx * dx + dy * dy
     
     // Check if they're close enough to collide (using collision box sizes)
-    const enemySize = ENEMY_CONFIG.TYPES[enemy.getTypeName().toUpperCase() as keyof typeof ENEMY_CONFIG.TYPES]?.SIZE || 24
+    const enemyHitboxSize = enemy.getHitboxSize()
     const playerSize = PLAYER_CONFIG.SIZE
-    const collisionDistance = (enemySize + playerSize) / 2
+    const collisionDistance = (enemyHitboxSize + playerSize) / 2
+    const collisionDistanceSquared = collisionDistance * collisionDistance
     
-    if (distance <= collisionDistance) {
-      // Enemy is touching player - deal damage
-      this.player.takeDamage(enemy.getDamage())
-      
-      // You could add visual/audio effects here
-      console.log(`Enemy ${enemy.getTypeName()} collides with player!`)
+    if (squaredDistance <= collisionDistanceSquared) {
+      // Enemy is touching player - check if they can attack (respects fire rate)
+      if (enemy.canAttack()) {
+        // Enemy can attack - deal damage and update last attack time
+        this.player.takeDamage(enemy.getDamage())
+        enemy.updateLastAttackTime() // Update the enemy's last attack time
+        
+        // Enemy attacks player
+      }
     }
   }
 
@@ -472,21 +318,22 @@ export class GameScene extends Phaser.Scene {
     const attackPos = this.player.getAttackPosition()
     const attackSize = this.player.getAttackSize()
     
-    // Calculate distance between attack and enemy
+    // Calculate squared distance between attack and enemy (avoid Math.sqrt)
     const dx = attackPos.x - enemy.x
     const dy = attackPos.y - enemy.y
-    const distance = Math.sqrt(dx * dx + dy * dy)
+    const squaredDistance = dx * dx + dy * dy
     
     // Check if attack hits enemy (using collision box sizes)
-    const enemySize = ENEMY_CONFIG.TYPES[enemy.getTypeName().toUpperCase() as keyof typeof ENEMY_CONFIG.TYPES]?.SIZE || 24
-    const collisionDistance = (attackSize + enemySize) / 2
+    const enemyHitboxSize = enemy.getHitboxSize()
+    const collisionDistance = (attackSize + enemyHitboxSize) / 2
+    const collisionDistanceSquared = collisionDistance * collisionDistance
     
-    if (distance <= collisionDistance) {
+    if (squaredDistance <= collisionDistanceSquared) {
       // Player's attack hits enemy - deal damage and mark as hit
       enemy.takeDamage(this.player.getAttackDamage())
       this.player.markEnemyAsHit(enemy)
       
-      console.log(`Player attack hits ${enemy.getTypeName()} for ${this.player.getAttackDamage()} damage!`)
+      // Player attack hits enemy
     }
   }
 
@@ -543,10 +390,10 @@ export class GameScene extends Phaser.Scene {
     // Add to enemies array
     this.enemies.push(enemy)
     
-    // Set depth so enemies appear above grass but below player
-    enemy.setDepth(0.5)
+    // Set depth so enemies appear above player
+    enemy.setDepth(1.5)
     
-    console.log(`Spawned ${enemyType} at (${clampedX}, ${clampedY})`)
+    // Enemy spawned
   }
 
   /**
@@ -564,9 +411,9 @@ export class GameScene extends Phaser.Scene {
     
     const enemy = new Enemy(this, enemyConfig)
     this.enemies.push(enemy)
-    enemy.setDepth(0.5)
+    enemy.setDepth(1.5)
     
-    console.log(`Spawned ${type} at (${x}, ${y})`)
+    // Enemy spawned at specific location
   }
 
   /**
@@ -586,7 +433,7 @@ export class GameScene extends Phaser.Scene {
       }
     })
     this.enemies = []
-    console.log('All enemies cleared')
+    // All enemies cleared
   }
 
   // ============================================================================
@@ -654,7 +501,7 @@ export class GameScene extends Phaser.Scene {
       this.restartGame()
     })
 
-    console.log('Game over screen displayed')
+    // Game over screen displayed
   }
 
   /**
@@ -681,7 +528,7 @@ export class GameScene extends Phaser.Scene {
    * Restarts the game by recreating the scene
    */
   private restartGame(): void {
-    console.log('Restarting game...')
+    // Restarting game
     
     // Hide game over screen
     this.hideGameOverScreen()
@@ -697,6 +544,6 @@ export class GameScene extends Phaser.Scene {
     this.createPlayer()
     this.setupCamera()
     
-    console.log('Game restarted successfully')
+    // Game restarted successfully
   }
 }

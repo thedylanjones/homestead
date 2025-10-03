@@ -15,7 +15,7 @@ export interface PlayerConfig {
  * Player Class
  * 
  * Represents the main character in the game. Handles movement, input,
- * and visual representation. Uses a simple black square as the player sprite.
+ * and visual representation. Uses a loaded sprite image from assets.
  */
 export class Player extends Phaser.Physics.Arcade.Sprite {
   private speed: number
@@ -26,16 +26,12 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     S: Phaser.Input.Keyboard.Key
     D: Phaser.Input.Keyboard.Key
   } | null = null
-  private graphics!: Phaser.GameObjects.Graphics
 
   constructor(scene: Phaser.Scene, config: PlayerConfig) {
-    // Initialize the sprite with empty texture (we'll create our own graphics)
-    super(scene, config.x, config.y, '')
+    // Initialize the sprite with the loaded player sprite image
+    super(scene, config.x, config.y, 'player-sprite')
     
     this.speed = config.speed
-    
-    // Create the visual representation as a simple black square
-    this.createPlayerGraphics(scene)
     
     // Add to scene and enable physics
     scene.add.existing(this)
@@ -48,29 +44,26 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.setupInput()
   }
 
-  /**
-   * Creates the visual representation of the player
-   * Uses a simple black square that's clearly visible against the background
-   */
-  private createPlayerGraphics(scene: Phaser.Scene): void {
-    this.graphics = scene.add.graphics()
-    this.graphics.fillStyle(PLAYER_CONFIG.COLOR) // Use color from config
-    this.graphics.fillRect(
-      -PLAYER_CONFIG.SIZE / 2, 
-      -PLAYER_CONFIG.SIZE / 2, 
-      PLAYER_CONFIG.SIZE, 
-      PLAYER_CONFIG.SIZE
-    )
-    this.graphics.setDepth(1000) // Ensure it's rendered on top of background
-  }
 
   /**
-   * Sets up physics properties for the player
+   * Sets up physics properties for the player - OPTIMIZED
    */
   private setupPhysics(): void {
     this.setCollideWorldBounds(true) // Prevent player from leaving the world
     this.setDrag(PLAYER_CONFIG.DRAG) // Add friction for smooth movement
-    this.body!.setSize(PLAYER_CONFIG.SIZE, PLAYER_CONFIG.SIZE) // Set collision box size
+    this.body!.setSize(32, 32) // Set collision box size to match sprite
+    this.setScale(2) // Scale up the sprite for better visibility
+    
+    // OPTIMIZATION: Configure physics body for better performance
+    if (this.body && 'immovable' in this.body) {
+      this.body.immovable = false // Allow movement
+    }
+    if (this.body && 'bounce' in this.body) {
+      this.body.bounce.set(0, 0) // No bouncing for better performance
+    }
+    if (this.body && 'maxVelocity' in this.body) {
+      this.body.maxVelocity.set(PLAYER_CONFIG.SPEED, PLAYER_CONFIG.SPEED) // Limit max velocity
+    }
   }
 
   /**
@@ -91,20 +84,25 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   /**
-   * Updates player movement and position
+   * Updates player movement and position - OPTIMIZED
    * Called every frame by the game loop
    */
   public update(): void {
     if (!this.wasdKeys || !this.cursors) return
 
-    // Reset velocity to zero each frame
-    this.setVelocity(0)
+    // OPTIMIZATION: Only reset velocity if there's no input
+    const hasInput = this.wasdKeys.W.isDown || this.wasdKeys.S.isDown || 
+                    this.wasdKeys.A.isDown || this.wasdKeys.D.isDown ||
+                    this.cursors.up.isDown || this.cursors.down.isDown ||
+                    this.cursors.left.isDown || this.cursors.right.isDown
 
-    // Handle movement input
-    this.handleMovement()
-    
-    // Synchronize graphics position with physics body
-    this.syncGraphicsPosition()
+    if (!hasInput) {
+      // Only reset velocity when no input is detected
+      this.setVelocity(0)
+    } else {
+      // Handle movement input
+      this.handleMovement()
+    }
   }
 
   /**
@@ -128,15 +126,6 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     if (this.wasdKeys.D.isDown || this.cursors.right.isDown) {
       this.setVelocityX(this.speed)
     }
-  }
-
-  /**
-   * Synchronizes the graphics object position with the physics body
-   * This ensures the visual representation follows the physics simulation
-   */
-  private syncGraphicsPosition(): void {
-    this.graphics.x = this.x
-    this.graphics.y = this.y
   }
 
   // ============================================================================

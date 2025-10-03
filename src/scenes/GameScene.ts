@@ -21,9 +21,44 @@ export class GameScene extends Phaser.Scene {
   private player: Player | null = null
   private worldWidth: number = WORLD_CONFIG.WIDTH
   private worldHeight: number = WORLD_CONFIG.HEIGHT
+  private grassPositions: { x: number, y: number, rotation: number }[] = []
+  private performanceText: Phaser.GameObjects.Text | null = null
+  private lastFpsUpdate: number = 0
 
   constructor() {
     super({ key: 'GameScene' })
+  }
+
+  /**
+   * Preload method - loads assets before the scene starts
+   */
+  public preload(): void {
+    console.log('Loading assets...')
+    
+    // Load the basic player sprite image
+    this.load.image('player-sprite', '/assets/sprites/basic/player_basic.png')
+    console.log('Loading player-sprite from: /assets/sprites/basic/player_basic.png')
+    
+    // Load the basic grass sprite for world decoration
+    this.load.image('grass-basic', '/assets/sprites/basic/grass_basic.png')
+    console.log('Loading grass-basic from: /assets/sprites/basic/grass_basic.png')
+    
+    // Also try loading with a different path format
+    this.load.image('grass-basic-alt', './assets/sprites/basic/grass_basic.png')
+    console.log('Loading grass-basic-alt from: ./assets/sprites/basic/grass_basic.png')
+    
+    // Also load an alternative grass texture for testing
+    this.load.image('grass-alt', '/assets/sprites/Outdoor/Grass/grass_1-Sheet.png')
+    console.log('Loading grass-alt from: /assets/sprites/Outdoor/Grass/grass_1-Sheet.png')
+    
+    // Add load event listeners to debug asset loading
+    this.load.on('filecomplete', (key: string, type: string) => {
+      console.log(`Asset loaded successfully: ${key} (${type})`)
+    })
+    
+    this.load.on('loaderror', (file: any) => {
+      console.error(`Failed to load asset: ${file.key} from ${file.url}`)
+    })
   }
 
   /**
@@ -34,14 +69,20 @@ export class GameScene extends Phaser.Scene {
     // Set up the physics world boundaries
     this.setupWorld()
     
-    // Create the beautiful farm-at-sunset background
-    this.createFarmBackground()
+    // Create the solid green background
+    this.createBackground()
+    
+    // Create scattered grass across the world
+    this.createGrassField()
     
     // Create and initialize the player
     this.createPlayer()
     
     // Set up camera to follow the player
     this.setupCamera()
+    
+    // Add performance monitoring
+    this.setupPerformanceMonitoring()
     
     // Log successful scene creation
     if (GAME_CONFIG.DEBUG.CONSOLE_LOGS) {
@@ -57,144 +98,96 @@ export class GameScene extends Phaser.Scene {
   }
 
   /**
-   * Creates the beautiful farm-at-sunset background
-   * Includes gradient, grass texture, and atmospheric effects
+   * Creates the background - solid green gradient
    */
-  private createFarmBackground(): void {
-    // Create the main gradient background
+  private createBackground(): void {
     this.createGradientBackground()
-    
-    // Add subtle grass texture for realism
-    this.createGrassTexture()
-    
-    // Add atmospheric effects (clouds, light rays)
-    this.createAtmosphere()
   }
 
+
   /**
-   * Creates the main gradient background
-   * Uses warm sunset colors transitioning to earth tones
+   * Creates the solid green background
+   * Uses solid green color for consistent background
    */
   private createGradientBackground(): void {
     const graphics = this.add.graphics()
     
-    // Create a beautiful sunset gradient from warm orange to soft brown
+    // Create solid green background
     graphics.fillGradientStyle(
-      BACKGROUND_CONFIG.GRADIENT_COLORS.TOP,      // Warm orange (sunset)
-      BACKGROUND_CONFIG.GRADIENT_COLORS.MID_TOP,  // Soft orange
-      BACKGROUND_CONFIG.GRADIENT_COLORS.MID_BOTTOM, // Light green (grass)
-      BACKGROUND_CONFIG.GRADIENT_COLORS.BOTTOM    // Saddle brown (earth)
+      BACKGROUND_CONFIG.GRADIENT_COLORS.TOP,      // Green
+      BACKGROUND_CONFIG.GRADIENT_COLORS.MID_TOP,  // Green
+      BACKGROUND_CONFIG.GRADIENT_COLORS.MID_BOTTOM, // Green
+      BACKGROUND_CONFIG.GRADIENT_COLORS.BOTTOM    // Green
     )
     graphics.fillRect(0, 0, this.worldWidth, this.worldHeight)
+    
+    // Set background to be behind everything else
+    graphics.setDepth(-10)
   }
 
   /**
-   * Creates subtle grass texture and dirt spots for realism
+   * Creates an ultra-optimized grass system with minimal sprites for maximum performance
    */
-  private createGrassTexture(): void {
-    const grassGraphics = this.add.graphics()
+  private createGrassField(): void {
+    // Check if grass texture is loaded
+    let grassTextureKey = 'grass-basic'
+    if (!this.textures.exists('grass-basic')) {
+      console.log('grass-basic not found, trying grass-basic-alt...')
+      if (this.textures.exists('grass-basic-alt')) {
+        grassTextureKey = 'grass-basic-alt'
+        console.log('Using grass-basic-alt instead')
+      } else {
+        console.error('Neither grass texture found! Available textures:', this.textures.list)
+        return
+      }
+    }
     
-    // Create grass blades
-    this.createGrassBlades(grassGraphics)
+    console.log('Grass texture found! Creating ultra-optimized minimal grass system...')
+    console.log('Using texture key:', grassTextureKey)
     
-    // Add dirt spots for realism
-    this.createDirtSpots(grassGraphics)
+    // Generate grass positions with reduced density (50% less common)
+    this.generateGrassPositions()
+    
+    // Create minimal grass sprites - only what's absolutely necessary
+    this.createMinimalGrassSprites(grassTextureKey)
+    
+    if (GAME_CONFIG.DEBUG.CONSOLE_LOGS) {
+      console.log(`Created minimal grass system with ${this.grassPositions.length} grass positions`)
+    }
   }
 
   /**
-   * Creates individual grass blades across the background
+   * Pre-generates all grass positions for the world with reduced density
    */
-  private createGrassBlades(graphics: Phaser.GameObjects.Graphics): void {
-    graphics.lineStyle(1, BACKGROUND_CONFIG.GRASS.COLOR, BACKGROUND_CONFIG.GRASS.OPACITY)
+  private generateGrassPositions(): void {
+    const grassSpacing = 200 // Much larger spacing = 50% less common
+    const grassCount = Math.floor((this.worldWidth / grassSpacing) * (this.worldHeight / grassSpacing))
     
-    // Draw grass blades randomly across the background
-    for (let i = 0; i < BACKGROUND_CONFIG.GRASS.COUNT; i++) {
+    this.grassPositions = []
+    
+    for (let i = 0; i < grassCount; i++) {
       const x = Phaser.Math.Between(0, this.worldWidth)
       const y = Phaser.Math.Between(0, this.worldHeight)
-      const height = Phaser.Math.Between(
-        BACKGROUND_CONFIG.GRASS.MIN_HEIGHT, 
-        BACKGROUND_CONFIG.GRASS.MAX_HEIGHT
-      )
+      const rotation = 0 // Always keep grass upright (no rotation)
       
-      // Draw a small grass blade
-      graphics.moveTo(x, y)
-      graphics.lineTo(x + Phaser.Math.Between(-1, 1), y - height)
-    }
-    
-    graphics.strokePath()
-  }
-
-  /**
-   * Creates dirt spots for added realism
-   */
-  private createDirtSpots(graphics: Phaser.GameObjects.Graphics): void {
-    graphics.fillStyle(BACKGROUND_CONFIG.DIRT.COLOR, BACKGROUND_CONFIG.DIRT.OPACITY)
-    
-    for (let i = 0; i < BACKGROUND_CONFIG.DIRT.COUNT; i++) {
-      const x = Phaser.Math.Between(0, this.worldWidth)
-      const y = Phaser.Math.Between(0, this.worldHeight)
-      const size = Phaser.Math.Between(
-        BACKGROUND_CONFIG.DIRT.MIN_SIZE, 
-        BACKGROUND_CONFIG.DIRT.MAX_SIZE
-      )
-      
-      graphics.fillCircle(x, y, size)
+      this.grassPositions.push({ x, y, rotation })
     }
   }
 
   /**
-   * Creates atmospheric effects like clouds and light rays
+   * Creates minimal grass sprites for maximum performance
    */
-  private createAtmosphere(): void {
-    const atmosphereGraphics = this.add.graphics()
-    
-    // Create cloud-like shapes
-    this.createClouds(atmosphereGraphics)
-    
-    // Create light rays
-    this.createLightRays(atmosphereGraphics)
+  private createMinimalGrassSprites(grassTextureKey: string): void {
+    this.grassPositions.forEach((pos) => {
+      // Create grass sprite with doubled size
+      const grass = this.add.image(pos.x, pos.y, grassTextureKey)
+      grass.setScale(2) // Double the size
+      grass.setRotation(pos.rotation)
+      grass.setDepth(-1)
+      grass.setVisible(true)
+    })
   }
 
-  /**
-   * Creates soft cloud-like shapes in the sky
-   */
-  private createClouds(graphics: Phaser.GameObjects.Graphics): void {
-    graphics.fillStyle(
-      BACKGROUND_CONFIG.ATMOSPHERE.CLOUD_COLOR, 
-      BACKGROUND_CONFIG.ATMOSPHERE.CLOUD_OPACITY
-    )
-    
-    // Create soft cloud-like shapes
-    for (let i = 0; i < BACKGROUND_CONFIG.ATMOSPHERE.CLOUD_COUNT; i++) {
-      const x = Phaser.Math.Between(0, this.worldWidth)
-      const y = Phaser.Math.Between(0, this.worldHeight * BACKGROUND_CONFIG.ATMOSPHERE.CLOUD_MAX_Y)
-      const size = Phaser.Math.Between(
-        BACKGROUND_CONFIG.ATMOSPHERE.CLOUD_MIN_SIZE, 
-        BACKGROUND_CONFIG.ATMOSPHERE.CLOUD_MAX_SIZE
-      )
-      
-      graphics.fillCircle(x, y, size)
-    }
-  }
-
-  /**
-   * Creates warm light rays from the sun
-   */
-  private createLightRays(graphics: Phaser.GameObjects.Graphics): void {
-    graphics.lineStyle(2, BACKGROUND_CONFIG.ATMOSPHERE.LIGHT_RAY_COLOR, BACKGROUND_CONFIG.ATMOSPHERE.LIGHT_RAY_OPACITY)
-    
-    for (let i = 0; i < BACKGROUND_CONFIG.ATMOSPHERE.LIGHT_RAY_COUNT; i++) {
-      const startX = Phaser.Math.Between(0, this.worldWidth)
-      const startY = 0
-      const endX = startX + Phaser.Math.Between(-50, 50)
-      const endY = Phaser.Math.Between(100, BACKGROUND_CONFIG.ATMOSPHERE.LIGHT_RAY_LENGTH)
-      
-      graphics.moveTo(startX, startY)
-      graphics.lineTo(endX, endY)
-    }
-    
-    graphics.strokePath()
-  }
 
   /**
    * Creates and initializes the player character
@@ -207,6 +200,9 @@ export class GameScene extends Phaser.Scene {
     }
     
     this.player = new Player(this, playerConfig)
+    
+    // Ensure player is on top of grass
+    this.player.setDepth(1)
     
     // Debug logging
     if (GAME_CONFIG.DEBUG.CONSOLE_LOGS) {
@@ -241,13 +237,38 @@ export class GameScene extends Phaser.Scene {
   }
 
   /**
-   * Game update loop - called every frame
+   * Sets up performance monitoring
+   */
+  private setupPerformanceMonitoring(): void {
+    if (GAME_CONFIG.DEBUG.CONSOLE_LOGS) {
+      this.performanceText = this.add.text(10, 10, '', {
+        fontSize: '16px',
+        color: '#00ff00',
+        backgroundColor: '#000000',
+        padding: { x: 5, y: 5 }
+      })
+      this.performanceText.setDepth(1000) // Always on top
+    }
+  }
+
+  /**
+   * Game update loop - called every frame - OPTIMIZED
    * Updates all game objects and systems
    */
   public update(): void {
     // Update player movement and position
     if (this.player) {
       this.player.update()
+    }
+    
+    // Update performance monitoring (only every 60 frames to reduce overhead)
+    if (this.performanceText && this.time.now - this.lastFpsUpdate > 1000) {
+      const fps = Math.round(this.game.loop.actualFps)
+      const memory = (performance as any).memory ? 
+        Math.round((performance as any).memory.usedJSHeapSize / 1024 / 1024) : 0
+      
+      this.performanceText.setText(`FPS: ${fps}\nMemory: ${memory}MB\nGrass: ${this.grassPositions.length}`)
+      this.lastFpsUpdate = this.time.now
     }
   }
 }

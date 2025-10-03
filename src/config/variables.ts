@@ -37,7 +37,7 @@ export const WORLD_CONFIG = {
   HEIGHT: 3072,
   
   // Background color (fallback color)
-  BACKGROUND_COLOR: '#8B4513', // Saddle brown
+  BACKGROUND_COLOR: '#63ab3f', // Green
 } as const
 
 // ============================================================================
@@ -62,12 +62,15 @@ export const CAMERA_CONFIG = {
 // ============================================================================
 
 export const BACKGROUND_CONFIG = {
-  // Sunset gradient colors (from top to bottom)
+  // Background type: solid green gradient
+  TYPE: 'gradient' as 'gradient',
+  
+  // Solid green background colors
   GRADIENT_COLORS: {
-    TOP: 0xFF8C42,      // Warm orange (sunset)
-    MID_TOP: 0xFFB366,  // Soft orange
-    MID_BOTTOM: 0x90EE90, // Light green (grass)
-    BOTTOM: 0x8B4513,   // Saddle brown (earth)
+    TOP: 0x63ab3f,      // Green
+    MID_TOP: 0x63ab3f,  // Green
+    MID_BOTTOM: 0x63ab3f, // Green
+    BOTTOM: 0x63ab3f,   // Green
   },
   
   // Grass texture settings
